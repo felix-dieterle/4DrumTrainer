@@ -1,0 +1,22 @@
+# Built outputs
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Android Studio generated
+*.class
+*.dex
+*.ap_
+*.tmp
+
+# Gradle
+.gradle/
+build/
+app/build/

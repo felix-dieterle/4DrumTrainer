@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand colours -->
+    <color name="primary">#1565C0</color>
+    <color name="primary_dark">#003c8f</color>
+    <color name="primary_light">#5e92f3</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="secondary">#FF6F00</color>
+    <color name="on_secondary">#FFFFFF</color>
+    <color name="background">#F5F5F5</color>
+    <color name="surface">#FFFFFF</color>
+
+    <!-- Feedback colours -->
+    <color name="pass_green">#2E7D32</color>
+    <color name="fail_red">#C62828</color>
+    <color name="warning_amber">#F57F17</color>
+
+    <!-- Metronome beat indicator colours -->
+    <color name="beat_down">#1565C0</color>
+    <color name="beat_up">#90CAF9</color>
+    <color name="beat_off">#DDDDDD</color>
+</resources>
