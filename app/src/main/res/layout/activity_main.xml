@@ -39,6 +39,21 @@
             android:layout_marginTop="4dp"
             android:textSize="16sp" />
 
+        <!-- Free-play drum kit: pads light up when a drum is detected -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp"
+            android:text="@string/free_play_label"
+            android:textSize="14sp" />
+
+        <com.drumtrainer.DrumKitView
+            android:id="@+id/drumKitView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" />
+
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

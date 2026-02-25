@@ -16,6 +16,7 @@
     <string name="start_lesson">Start Next Lesson</string>
     <string name="edit_profile">Edit Profile</string>
     <string name="calibrate_instruments">🎚 Calibrate Instruments</string>
+    <string name="free_play_label">🥁 Freies Spiel – spiel einfach drauf los!</string>
 
     <!-- Profile screen -->
     <string name="profile_header">Student Profile</string>
