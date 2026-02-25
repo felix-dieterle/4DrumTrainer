@@ -66,7 +66,17 @@
             android:id="@+id/drumKitView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="4dp" />
+
+        <!-- Real-time hit indicator: shows the last detected hit and its strength -->
+        <TextView
+            android:id="@+id/textHitIndicator"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
 
         <!-- Scrolling note highway (visible only during recording) -->
         <com.drumtrainer.NoteScrollView
