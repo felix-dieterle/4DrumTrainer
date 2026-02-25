@@ -29,6 +29,12 @@ enum class DrumPart(
     /** Crash cymbal – wide-band explosive burst. */
     CRASH(displayName = "Crash", freqRangeLowHz = 200, freqRangeHighHz = 10000),
 
-    /** Tom (rack or floor) – pitched tonal thud. */
-    TOM(displayName = "Tom", freqRangeLowHz = 80, freqRangeHighHz = 500);
+    /** High tom (rack tom 1) – highest-pitched tom, bright tonal attack. */
+    TOM_HIGH(displayName = "High Tom", freqRangeLowHz = 200, freqRangeHighHz = 500),
+
+    /** Mid tom (rack tom 2) – mid-pitched tonal thud. */
+    TOM_MID(displayName = "Mid Tom", freqRangeLowHz = 100, freqRangeHighHz = 350),
+
+    /** Floor tom – lowest-pitched tom, deep resonant thud. */
+    TOM_FLOOR(displayName = "Floor Tom", freqRangeLowHz = 60, freqRangeHighHz = 200);
 }

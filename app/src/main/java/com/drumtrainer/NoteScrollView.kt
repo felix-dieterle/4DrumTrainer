@@ -182,7 +182,9 @@ class NoteScrollView @JvmOverloads constructor(
         DrumPart.HI_HAT_OPEN   -> "OH"
         DrumPart.RIDE          -> "RD"
         DrumPart.CRASH         -> "CR"
-        DrumPart.TOM           -> "TM"
+        DrumPart.TOM_HIGH      -> "T1"
+        DrumPart.TOM_MID       -> "T2"
+        DrumPart.TOM_FLOOR     -> "TF"
     }
 
     private fun partColor(part: DrumPart): Int = when (part) {
@@ -192,7 +194,9 @@ class NoteScrollView @JvmOverloads constructor(
         DrumPart.HI_HAT_OPEN   -> 0xFF00ACC1.toInt()
         DrumPart.RIDE          -> 0xFFFB8C00.toInt()
         DrumPart.CRASH         -> 0xFF8E24AA.toInt()
-        DrumPart.TOM           -> 0xFFF4511E.toInt()
+        DrumPart.TOM_HIGH      -> 0xFFF4511E.toInt()
+        DrumPart.TOM_MID       -> 0xFFFF7043.toInt()
+        DrumPart.TOM_FLOOR     -> 0xFFBF360C.toInt()
     }
 
     private fun dpToPx(dp: Float): Float = dp * resources.displayMetrics.density

@@ -12,7 +12,7 @@ package com.drumtrainer.model
  * |   1   | The Basic Beat          |  65 – 80   | Bass on 1 & 3, snare on 2 & 4           |
  * |   2   | Eighth-Note Hi-Hat      |  70 – 85   | Hi-hat eighth notes added to basic beat  |
  * |   3   | The Open Hi-Hat         |  75 – 90   | Open hi-hat on beat 2 & 4 variations    |
- * |   4   | Introducing the Tom     |  80 – 95   | Tom fills on beat 4                      |
+ * |   4   | Introducing the Toms    |  80 – 95   | Tom fills using high, mid, and floor toms|
  * |   5   | Crash & Ride            |  85 – 100  | Cymbal accents, ride pattern             |
  * |   6   | Sixteenth-Note Patterns |  90 – 110  | Sixteenth-note hi-hat, ghost notes       |
  * |   7   | Advanced Fills          |  95 – 120  | Multi-tom fills, syncopation             |

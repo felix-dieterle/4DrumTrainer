@@ -74,7 +74,9 @@ object PatternGridRenderer {
         DrumPart.HI_HAT_OPEN   -> Color.parseColor("#00ACC1") // cyan
         DrumPart.RIDE          -> Color.parseColor("#FB8C00") // orange
         DrumPart.CRASH         -> Color.parseColor("#8E24AA") // purple
-        DrumPart.TOM           -> Color.parseColor("#F4511E") // deep orange
+        DrumPart.TOM_HIGH      -> Color.parseColor("#F4511E") // deep orange
+        DrumPart.TOM_MID       -> Color.parseColor("#FF7043") // light deep orange
+        DrumPart.TOM_FLOOR     -> Color.parseColor("#BF360C") // dark deep orange
     }
 
     private fun dpToPx(dp: Int, context: Context): Int =

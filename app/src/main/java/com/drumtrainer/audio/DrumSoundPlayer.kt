@@ -26,7 +26,9 @@ object DrumSoundPlayer {
             DrumPart.SNARE         -> snare()
             DrumPart.HI_HAT_CLOSED -> hiHat(durationMs = 60)
             DrumPart.HI_HAT_OPEN   -> hiHat(durationMs = 220)
-            DrumPart.TOM           -> tom()
+            DrumPart.TOM_HIGH      -> tom(startFreqHz = 200.0, endFreqHz = 120.0)
+            DrumPart.TOM_MID       -> tom(startFreqHz = 150.0, endFreqHz = 70.0)
+            DrumPart.TOM_FLOOR     -> tom(startFreqHz = 100.0, endFreqHz = 50.0)
             DrumPart.RIDE          -> cymbal(baseFreqHz = 800f, durationMs = 400)
             DrumPart.CRASH         -> cymbal(baseFreqHz = 500f, durationMs = 650)
         }
@@ -95,12 +97,13 @@ object DrumSoundPlayer {
         }
     }
 
-    private fun tom(): FloatArray {
+    private fun tom(startFreqHz: Double = 150.0, endFreqHz: Double = 70.0): FloatArray {
         val size = SAMPLE_RATE * 190 / 1000
         return FloatArray(size) { i ->
             val t = i.toDouble() / SAMPLE_RATE
             val decay = exp(-t * 18.0)
-            val freq  = (150.0 - 80.0 * (t * 5.0).coerceAtMost(1.0)).coerceAtLeast(70.0)
+            val freq  = (startFreqHz - (startFreqHz - endFreqHz) * (t * 5.0).coerceAtMost(1.0))
+                .coerceAtLeast(endFreqHz)
             (sin(2.0 * PI * freq * t) * decay * 0.85).toFloat()
         }
     }

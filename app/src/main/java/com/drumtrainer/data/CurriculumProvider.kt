@@ -308,8 +308,8 @@ object CurriculumProvider {
         addAll(basicBeatWithEighthHiHat())
         // Replace hi-hat on beats 6 & 7 with toms for the fill
         removeAll { it.beatIndex >= 6 && it.part == DrumPart.HI_HAT_CLOSED }
-        add(BeatEvent(6, 2, DrumPart.TOM))
-        add(BeatEvent(7, 2, DrumPart.TOM))
+        add(BeatEvent(6, 2, DrumPart.TOM_HIGH))
+        add(BeatEvent(7, 2, DrumPart.TOM_MID))
     }
 
     /** Ride cymbal pattern on all eighth notes, crash on beat 0. */
@@ -335,7 +335,7 @@ object CurriculumProvider {
     private fun advancedFillPattern(): List<BeatEvent> = buildList {
         addAll(sixteenthNoteHiHatPattern())
         removeAll { it.beatIndex >= 12 && it.part == DrumPart.HI_HAT_CLOSED }
-        listOf(DrumPart.TOM, DrumPart.TOM, DrumPart.SNARE, DrumPart.BASS_DRUM)
+        listOf(DrumPart.TOM_HIGH, DrumPart.TOM_MID, DrumPart.TOM_FLOOR, DrumPart.BASS_DRUM)
             .forEachIndexed { idx, part -> add(BeatEvent(12 + idx, 4, part)) }
     }
 }

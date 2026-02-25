@@ -98,7 +98,9 @@ class DrumKitView @JvmOverloads constructor(
         PadDef(DrumPart.CRASH,         0.88f, 0.24f, 0.08f, isCymbal = true),
         PadDef(DrumPart.RIDE,          0.72f, 0.14f, 0.08f, isCymbal = true),
         PadDef(DrumPart.SNARE,         0.38f, 0.55f, 0.11f, isCymbal = false),
-        PadDef(DrumPart.TOM,           0.58f, 0.50f, 0.10f, isCymbal = false),
+        PadDef(DrumPart.TOM_HIGH,      0.50f, 0.40f, 0.09f, isCymbal = false),
+        PadDef(DrumPart.TOM_MID,       0.62f, 0.46f, 0.09f, isCymbal = false),
+        PadDef(DrumPart.TOM_FLOOR,     0.74f, 0.56f, 0.10f, isCymbal = false),
         PadDef(DrumPart.BASS_DRUM,     0.80f, 0.68f, 0.14f, isCymbal = false)
     )
 
@@ -319,7 +321,9 @@ class DrumKitView @JvmOverloads constructor(
             DrumPart.HI_HAT_OPEN   -> 0x00ACC1
             DrumPart.RIDE          -> 0xFB8C00
             DrumPart.CRASH         -> 0x8E24AA
-            DrumPart.TOM           -> 0xF4511E
+            DrumPart.TOM_HIGH      -> 0xF4511E
+            DrumPart.TOM_MID       -> 0xFF7043
+            DrumPart.TOM_FLOOR     -> 0xBF360C
         }
         val r = (hex shr 16) and 0xFF
         val g = (hex shr 8)  and 0xFF
@@ -339,7 +343,9 @@ class DrumKitView @JvmOverloads constructor(
         DrumPart.HI_HAT_OPEN            -> "Hi-Hat"
         DrumPart.RIDE                   -> "Ride"
         DrumPart.CRASH                  -> "Crash"
-        DrumPart.TOM                    -> "Tom"
+        DrumPart.TOM_HIGH               -> "Hi Tom"
+        DrumPart.TOM_MID                -> "Mid Tom"
+        DrumPart.TOM_FLOOR              -> "Fl Tom"
     }
 
     private fun dpToPx(dp: Float): Float = dp * resources.displayMetrics.density
