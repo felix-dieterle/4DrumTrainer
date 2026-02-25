@@ -160,9 +160,19 @@ class LessonActivity : AppCompatActivity() {
 
         audioProcessor.startRecording(l.pattern, bpm) { timestampMs, part, velocity ->
             val feedback = buildHitFeedback(timestampMs, part, velocity)
+            // Determine if the detected instrument matches the nearest expected hit
+            val timingWindowMs = 150L
+            val nearest = expectedTimestamps.minByOrNull { abs(it.first - timestampMs) }
+            val correctPart = nearest != null && nearest.second == part
             runOnUiThread {
                 binding.textHitIndicator.visibility = View.VISIBLE
                 binding.textHitIndicator.text = feedback
+                if (part != null) {
+                    binding.drumKitView.hitResultParts = mapOf(part to correctPart)
+                    metronomeHandler.postDelayed({
+                        binding.drumKitView.hitResultParts = emptyMap()
+                    }, 600L)
+                }
             }
         }
 
@@ -288,6 +298,7 @@ class LessonActivity : AppCompatActivity() {
         metronomeHandler.removeCallbacksAndMessages(null)
 
         binding.drumKitView.activeParts = emptySet()
+        binding.drumKitView.hitResultParts = emptyMap()
         binding.noteScrollView.stopScroll()
         binding.noteScrollView.visibility = View.GONE
         binding.textHitIndicator.visibility = View.GONE
