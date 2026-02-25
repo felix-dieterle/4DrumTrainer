@@ -27,26 +27,45 @@ jobs:
       - name: Setup keystore
         run: |
           if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "::error::KEYSTORE_BASE64 secret is not set. Every build must use the same" \
-                 "signing key so that users can install updates over previous versions." \
+            echo "::warning::KEYSTORE_BASE64 secret is not set. Generating a one-time keystore." \
+                 "This APK cannot be installed over a version signed with a different key." \
                  "See the 'CI/CD — Automatic APK Releases' section in README.md for setup instructions."
-            exit 1
+            keytool -genkeypair \
+              -keystore app/debug.keystore \
+              -alias drumtrainer \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=4DrumTrainer, O=4DrumTrainer, C=DE" \
+              -noprompt
+            echo "KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=drumtrainer" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "KEYSTORE_EPHEMERAL=true" >> "$GITHUB_ENV"
+          else
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/debug.keystore
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "KEYSTORE_EPHEMERAL=false" >> "$GITHUB_ENV"
           fi
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/debug.keystore
+          echo "KEYSTORE_FILE=${{ github.workspace }}/app/debug.keystore" >> "$GITHUB_ENV"
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
-        env:
-          KEYSTORE_FILE: ${{ github.workspace }}/app/debug.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Get version name
         id: version
         run: |
           VERSION=$(grep 'versionName' app/build.gradle | head -1 | awk '{print $2}' | tr -d '"')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$KEYSTORE_EPHEMERAL" = "true" ]; then
+            echo "signing_note=This build was signed with a one-time generated key (KEYSTORE_BASE64 secret not set). You must uninstall any previous version before installing this APK." >> "$GITHUB_OUTPUT"
+          else
+            echo "signing_note=Because every build is signed with the same key, you can install this update over a previously installed version without uninstalling first." >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -57,7 +76,6 @@ jobs:
             Debug APK built from commit ${{ github.sha }}.
 
             Install on your device by downloading `app-debug.apk` below.
-            Because every build is signed with the same key, you can install
-            this update over a previously installed version without uninstalling first.
+            ${{ steps.version.outputs.signing_note }}
           files: app/build/outputs/apk/debug/app-debug.apk
           token: ${{ secrets.GITHUB_TOKEN }}
