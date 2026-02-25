@@ -103,6 +103,32 @@ class DatabaseHelper(context: Context) :
         return ids
     }
 
+    /**
+     * Returns a [Triple] of (bronzeCount, silverCount, goldCount) for [studentId].
+     * A bronze is awarded for overall_score in 50–90, silver for 91–99, gold for 100.
+     */
+    fun getMedalCounts(studentId: Long): Triple<Int, Int, Int> {
+        var bronze = 0; var silver = 0; var gold = 0
+        val cursor = readableDatabase.query(
+            TABLE_PROGRESS,
+            arrayOf(COL_P_OVERALL),
+            "$COL_P_STUDENT_ID = ?",
+            arrayOf(studentId.toString()),
+            null, null, null
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                val score = it.getInt(0)
+                when {
+                    score == 100       -> gold++
+                    score > 90         -> silver++
+                    score >= 50        -> bronze++
+                }
+            }
+        }
+        return Triple(bronze, silver, gold)
+    }
+
     /** Returns all attempts for a specific lesson by a specific student. */
     fun getAttemptsForLesson(studentId: Long, lessonId: Long): List<LessonProgress> {
         val list = mutableListOf<LessonProgress>()

@@ -12,6 +12,25 @@
         android:padding="24dp"
         android:gravity="center_horizontal">
 
+        <!-- Medal award -->
+        <TextView
+            android:id="@+id/textMedal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="64sp"
+            android:layout_marginBottom="4dp"
+            android:visibility="gone" />
+
+        <!-- Party animation text (shown only for gold / 100 %) -->
+        <TextView
+            android:id="@+id/textParty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/party_animation"
+            android:textSize="32sp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
         <!-- Pass / Fail -->
         <TextView
             android:id="@+id/textPassFail"

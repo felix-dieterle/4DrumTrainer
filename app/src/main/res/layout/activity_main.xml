@@ -14,13 +14,14 @@
         android:gravity="center_horizontal">
 
         <ImageView
-            android:id="@+id/imageLogo"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
+            android:id="@+id/imageProfile"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
             android:layout_marginTop="32dp"
             android:layout_marginBottom="24dp"
-            android:contentDescription="@string/app_name"
-            android:src="@mipmap/ic_launcher" />
+            android:contentDescription="@string/profile_picture_desc"
+            android:src="@mipmap/ic_launcher"
+            android:scaleType="centerCrop" />
 
         <TextView
             android:id="@+id/textStudentName"
@@ -64,6 +65,62 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:textSize="16sp" />
+
+                <!-- Child-friendly level progress bar -->
+                <TextView
+                    android:id="@+id/textLevelProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <ProgressBar
+                    android:id="@+id/progressLevel"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="16dp"
+                    android:layout_marginTop="6dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/primary" />
+
+                <!-- Medal counts -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center">
+
+                    <TextView
+                        android:id="@+id/textMedalBronze"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textSize="22sp"
+                        android:textColor="@color/medal_bronze" />
+
+                    <TextView
+                        android:id="@+id/textMedalSilver"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textSize="22sp"
+                        android:textColor="@color/medal_silver" />
+
+                    <TextView
+                        android:id="@+id/textMedalGold"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textSize="22sp"
+                        android:textColor="@color/medal_gold" />
+
+                </LinearLayout>
 
             </LinearLayout>
 
