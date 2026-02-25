@@ -1,14 +1,18 @@
 package com.drumtrainer
 
 import android.app.DatePickerDialog
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.drumtrainer.data.DatabaseHelper
 import com.drumtrainer.data.PreferencesManager
 import com.drumtrainer.databinding.ActivityProfileBinding
 import com.drumtrainer.model.AgeGroup
 import com.drumtrainer.model.Student
+import java.io.File
+import java.io.FileOutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -19,6 +23,7 @@ import java.time.format.FormatStyle
  * The form collects:
  *  - Student name
  *  - Date of birth (must be ≥ [AgeGroup.MINIMUM_AGE] years ago)
+ *  - Profile picture (optional, picked from the device gallery)
  *
  * On save the student is persisted via [DatabaseHelper] and the active student
  * preference is updated.
@@ -31,6 +36,23 @@ class ProfileActivity : AppCompatActivity() {
 
     private var selectedBirthDate: LocalDate? = null
 
+    private val pickImageLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            uri ?: return@registerForActivityResult
+            try {
+                // Copy to internal storage so the URI remains valid across reboots
+                val destFile = File(filesDir, PROFILE_PIC_FILENAME)
+                contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(destFile).use { output -> input.copyTo(output) }
+                }
+                prefs.profilePictureUri = destFile.absolutePath
+                val bmp = BitmapFactory.decodeFile(destFile.absolutePath)
+                if (bmp != null) binding.imageProfilePicture.setImageBitmap(bmp)
+            } catch (_: Exception) {
+                Toast.makeText(this, R.string.error_save_failed, Toast.LENGTH_SHORT).show()
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityProfileBinding.inflate(layoutInflater)
@@ -42,6 +64,16 @@ class ProfileActivity : AppCompatActivity() {
 
         binding.buttonPickDate.setOnClickListener { showDatePicker() }
         binding.buttonSaveProfile.setOnClickListener { saveProfile() }
+        binding.buttonUploadPicture.setOnClickListener {
+            pickImageLauncher.launch("image/*")
+        }
+
+        // Load existing profile picture if available
+        val picPath = prefs.profilePictureUri
+        if (picPath.isNotEmpty()) {
+            val bmp = BitmapFactory.decodeFile(picPath)
+            if (bmp != null) binding.imageProfilePicture.setImageBitmap(bmp)
+        }
 
         // Pre-fill if an existing student is active
         val existingId = prefs.activeStudentId
@@ -112,5 +144,9 @@ class ProfileActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         onBackPressedDispatcher.onBackPressed()
         return true
+    }
+
+    companion object {
+        private const val PROFILE_PIC_FILENAME = "profile_picture.jpg"
     }
 }

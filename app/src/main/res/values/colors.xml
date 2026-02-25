@@ -19,4 +19,8 @@
     <color name="beat_down">#1565C0</color>
     <color name="beat_up">#90CAF9</color>
     <color name="beat_off">#DDDDDD</color>
+    <!-- Medal colours -->
+    <color name="medal_gold">#FFD700</color>
+    <color name="medal_silver">#C0C0C0</color>
+    <color name="medal_bronze">#CD7F32</color>
 </resources>

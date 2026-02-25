@@ -2,14 +2,18 @@ package com.drumtrainer
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.drumtrainer.databinding.ActivityResultBinding
+import com.drumtrainer.model.Medal
+import com.drumtrainer.model.medalForScore
 
 /**
  * Displays the outcome of a completed lesson session:
  *  - Rhythm score (% of hits in time)
  *  - Pitch/instrument score (% of correct drum parts)
  *  - Overall score
+ *  - Medal award (bronze 50–90 %, silver 91–99 %, gold 100 %) + party animation on gold
  *  - Pass/fail badge
  *
  * Provides "Try Again" and "Next Lesson" navigation buttons.
@@ -41,6 +45,8 @@ class ResultActivity : AppCompatActivity() {
 
         binding.textEncouragement.text = encouragementText(overallScore, passed)
 
+        showMedal(overallScore)
+
         binding.buttonTryAgain.setOnClickListener {
             startActivity(Intent(this, LessonActivity::class.java))
             finish()
@@ -55,6 +61,50 @@ class ResultActivity : AppCompatActivity() {
         binding.buttonHome.setOnClickListener {
             startActivity(Intent(this, MainActivity::class.java))
             finish()
+        }
+    }
+
+    private fun showMedal(score: Int) {
+        val medal = medalForScore(score)
+        if (medal == Medal.NONE) return
+
+        val (medalText, medalColor) = when (medal) {
+            Medal.GOLD   -> Pair(getString(R.string.medal_gold),   getColor(R.color.medal_gold))
+            Medal.SILVER -> Pair(getString(R.string.medal_silver), getColor(R.color.medal_silver))
+            Medal.BRONZE -> Pair(getString(R.string.medal_bronze), getColor(R.color.medal_bronze))
+            Medal.NONE   -> return
+        }
+
+        binding.textMedal.text = medalText
+        binding.textMedal.setTextColor(medalColor)
+        binding.textMedal.visibility = View.VISIBLE
+
+        // Bounce-in animation for the medal
+        binding.textMedal.scaleX = 0f
+        binding.textMedal.scaleY = 0f
+        binding.textMedal.animate()
+            .scaleX(1f).scaleY(1f)
+            .setDuration(500)
+            .start()
+
+        if (medal == Medal.GOLD) {
+            // Party animation for perfect score
+            binding.textParty.visibility = View.VISIBLE
+            binding.textParty.alpha = 0f
+            binding.textParty.animate()
+                .alpha(1f)
+                .setDuration(400)
+                .withEndAction {
+                    binding.textParty.animate()
+                        .scaleX(1.3f).scaleY(1.3f)
+                        .setDuration(300)
+                        .withEndAction {
+                            binding.textParty.animate()
+                                .scaleX(1f).scaleY(1f)
+                                .setDuration(300)
+                                .start()
+                        }.start()
+                }.start()
         }
     }
 

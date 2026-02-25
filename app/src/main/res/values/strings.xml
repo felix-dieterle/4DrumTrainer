@@ -61,7 +61,20 @@
     <string name="encouragement_almost">Almost there! Try one more time — you\'re so close!</string>
     <string name="encouragement_keep_trying">Don\'t give up! Every drummer starts somewhere. Try again!</string>
 
-    <!-- Curriculum level titles and descriptions -->
+    <!-- Medals -->
+    <string name="medal_gold">🥇 Gold!</string>
+    <string name="medal_silver">🥈 Silber!</string>
+    <string name="medal_bronze">🥉 Bronze!</string>
+    <string name="medal_none"></string>
+    <string name="medal_count_bronze">🥉 %1$d</string>
+    <string name="medal_count_silver">🥈 %1$d</string>
+    <string name="medal_count_gold">🥇 %1$d</string>
+    <string name="level_progress">Level %1$d von %2$d 🎵</string>
+    <string name="party_animation">🎉🎊🥁🎉🎊</string>
+    <string name="upload_profile_picture">Profilbild ändern 📷</string>
+    <string name="profile_picture_desc">Profilbild</string>
+
+
     <string name="level_0_title">Level 1 – Getting Started</string>
     <string name="level_0_desc">Learn to keep a steady beat on the hi-hat using quarter notes.</string>
     <string name="level_1_title">Level 2 – The Basic Beat</string>
