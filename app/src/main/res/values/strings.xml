@@ -6,6 +6,7 @@
     <string name="title_profile">Student Profile</string>
     <string name="title_lesson">Practice</string>
     <string name="title_result">Results</string>
+    <string name="title_calibration">Calibrate Instruments</string>
 
     <!-- Main screen -->
     <string name="welcome_student">Welcome, %1$s!</string>
@@ -14,6 +15,7 @@
     <string name="lessons_completed">Lessons completed: %1$d</string>
     <string name="start_lesson">Start Next Lesson</string>
     <string name="edit_profile">Edit Profile</string>
+    <string name="calibrate_instruments">🎚 Calibrate Instruments</string>
 
     <!-- Profile screen -->
     <string name="profile_header">Student Profile</string>
@@ -74,6 +76,17 @@
     <string name="party_animation">🎉🎊🥁🎉🎊</string>
     <string name="upload_profile_picture">Profilbild ändern 📷</string>
     <string name="profile_picture_desc">Profilbild</string>
+
+    <!-- Calibration screen -->
+    <string name="calibration_instruction">Hit each instrument several times while recording to calibrate frequency detection for your drum kit. Tap Record, then strike the selected instrument repeatedly for 3 seconds.</string>
+    <string name="calibration_select_instrument">Select Instrument</string>
+    <string name="calibration_current">✓ Calibrated: %1$d Hz – %2$d Hz</string>
+    <string name="calibration_default">Default: %1$d Hz – %2$d Hz (not calibrated)</string>
+    <string name="calibration_recording">🎙 Recording… hit the instrument repeatedly!</string>
+    <string name="calibration_start_recording">▶ Record (3 s)</string>
+    <string name="calibration_reset">Reset to Default</string>
+    <string name="calibration_saved">Calibration saved!</string>
+    <string name="calibration_no_hits">No hits detected — please try again and strike the instrument clearly.</string>
 
 
     <string name="level_0_title">Level 1 – Getting Started</string>

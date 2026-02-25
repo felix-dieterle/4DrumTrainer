@@ -2,6 +2,7 @@ package com.drumtrainer.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.drumtrainer.model.DrumPart
 
 /**
  * Thin wrapper around [SharedPreferences] for simple key-value persistence.
@@ -42,5 +43,52 @@ class PreferencesManager(context: Context) {
         private const val KEY_FIRST_LAUNCH    = "first_launch"
         private const val KEY_LAST_LESSON     = "last_lesson_id"
         private const val KEY_PROFILE_PIC     = "profile_picture_uri"
+
+        private fun calKeyLow(part: DrumPart)  = "cal_${part.name}_low"
+        private fun calKeyHigh(part: DrumPart) = "cal_${part.name}_high"
     }
+
+    // ── Instrument calibration ────────────────────────────────────────────────
+
+    /**
+     * Persists a calibrated frequency band for [part].
+     *
+     * @param part   The drum instrument being calibrated.
+     * @param lowHz  Detected lower bound of the dominant frequency band.
+     * @param highHz Detected upper bound of the dominant frequency band.
+     */
+    fun setCalibration(part: DrumPart, lowHz: Int, highHz: Int) {
+        prefs.edit()
+            .putInt(calKeyLow(part), lowHz)
+            .putInt(calKeyHigh(part), highHz)
+            .apply()
+    }
+
+    /**
+     * Returns the previously saved calibration for [part], or `null` if the
+     * instrument has never been calibrated.
+     */
+    fun getCalibration(part: DrumPart): Pair<Int, Int>? {
+        val low  = prefs.getInt(calKeyLow(part),  -1)
+        val high = prefs.getInt(calKeyHigh(part), -1)
+        return if (low > 0 && high > 0) low to high else null
+    }
+
+    /** Removes the saved calibration for [part], restoring the default range. */
+    fun clearCalibration(part: DrumPart) {
+        prefs.edit()
+            .remove(calKeyLow(part))
+            .remove(calKeyHigh(part))
+            .apply()
+    }
+
+    /**
+     * Returns a map of all [DrumPart]s that have been calibrated to their
+     * saved (lowHz, highHz) ranges.  Parts that have not been calibrated are
+     * absent from the map.
+     */
+    fun getAllCalibrations(): Map<DrumPart, Pair<Int, Int>> =
+        DrumPart.values().mapNotNull { part ->
+            getCalibration(part)?.let { part to it }
+        }.toMap()
 }
