@@ -183,17 +183,23 @@ A lesson is marked **passed** when `overallScore ≥ lesson.passThresholdPct`.  
 Every push to `main` triggers the **Build and Release APK** GitHub Actions workflow
 (`.github/workflows/build-release.yml`).  The workflow:
 
-1. Builds a **debug APK** signed with a **consistent keystore** stored in GitHub Secrets.
+1. Builds a **debug APK** signed with the **committed `app/debug.keystore`** (or a
+   keystore supplied via GitHub Secrets — see below).
 2. Creates a **GitHub Release** (tagged `v<versionName>-build<run_number>`) and attaches
    the APK so users can download and sideload it directly.
 
-Because the same keystore is used for every build, a newly released APK can be installed
-over a previously installed version without uninstalling first (standard Android update flow).
+Because every build uses the same signing key, a newly released APK can be installed
+**over a previously installed version without uninstalling first** (standard Android
+update flow).
 
-### One-time keystore setup (repository maintainer)
+### Optional: replace the debug keystore with your own (repository maintainer)
 
-Run the following commands once to create the signing keystore and upload its contents as
-GitHub Secrets:
+The repository ships with a pre-generated `app/debug.keystore` (alias `drumtrainer`,
+passwords `android`).  This is intentional — it is a **development-only** keystore with
+well-known, public credentials and carries no security risk for a sideloaded debug app.
+
+If you want to use your own keystore instead, generate it once and store it as GitHub
+Secrets:
 
 ```bash
 # 1. Generate a keystore (keep the generated file somewhere safe)
@@ -221,6 +227,8 @@ Then add the following **GitHub Actions secrets** under
 | `KEYSTORE_PASSWORD`| `<STORE_PASSWORD>` chosen above              |
 | `KEY_ALIAS`        | `drumtrainer`                                |
 | `KEY_PASSWORD`     | `<KEY_PASSWORD>` chosen above                |
+
+When `KEYSTORE_BASE64` is set the workflow uses it instead of the committed keystore.
 
 > **Important:** keep the `.keystore` file and passwords in a safe place.
 > Losing them means future builds cannot update existing installations.
