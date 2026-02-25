@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
+import android.view.Choreographer
 import android.view.View
 import com.drumtrainer.model.DrumPart
 
@@ -69,11 +70,13 @@ class NoteScrollView @JvmOverloads constructor(
         strokeWidth = 2f
     }
 
-    private val frameCallback = object : Runnable {
-        override fun run() {
+    // Use Choreographer instead of postDelayed so frames are aligned with vsync,
+    // preventing timing drift relative to the metronome and drum kit updates.
+    private val frameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
             if (isScrolling) {
                 invalidate()
-                postDelayed(this, 16L) // ~60 fps
+                Choreographer.getInstance().postFrameCallback(this)
             }
         }
     }
@@ -89,13 +92,13 @@ class NoteScrollView @JvmOverloads constructor(
         this.parts = notes.map { it.second }.distinct()
         isScrolling = true
         requestLayout() // re-measure lane heights based on part count
-        post(frameCallback)
+        Choreographer.getInstance().postFrameCallback(frameCallback)
     }
 
     /** Stop the animation and hide the view content. */
     fun stopScroll() {
         isScrolling = false
-        removeCallbacks(frameCallback)
+        Choreographer.getInstance().removeFrameCallback(frameCallback)
         notes = emptyList()
         parts = emptyList()
         invalidate()

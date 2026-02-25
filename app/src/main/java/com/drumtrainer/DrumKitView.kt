@@ -299,7 +299,7 @@ class DrumKitView @JvmOverloads constructor(
         val r = (hex shr 16) and 0xFF
         val g = (hex shr 8)  and 0xFF
         val b = hex          and 0xFF
-        val scale = if (active) 1f else 0.22f
+        val scale = if (active) 1f else 0.45f
         return Color.rgb(
             (r * scale + 24).toInt().coerceIn(0, 255),
             (g * scale + 24).toInt().coerceIn(0, 255),

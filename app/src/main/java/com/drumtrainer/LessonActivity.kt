@@ -251,6 +251,10 @@ class LessonActivity : AppCompatActivity() {
                     .toSet()
                 binding.drumKitView.activeParts = active
 
+                // Ensure the note scroll view redraws in the same frame as the
+                // drum kit and metronome indicator so all three stay in sync.
+                binding.noteScrollView.invalidate()
+
                 // Flash beat indicator on every sub-beat that has an active hit
                 // (and always on the downbeat) so it stays in sync with the drum kit.
                 if (active.isNotEmpty() || isDownbeat) {
