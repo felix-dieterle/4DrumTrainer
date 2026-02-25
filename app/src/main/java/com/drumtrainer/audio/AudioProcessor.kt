@@ -5,6 +5,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import com.drumtrainer.model.BeatEvent
 import com.drumtrainer.model.DrumPart
+import kotlin.math.sqrt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -62,11 +63,13 @@ class AudioProcessor(
      *                      by [buildExpectedTimestamps].
      * @param bpm           Target BPM used only for UI metronome; analysis is timing-window based.
      * @param onHitDetected Optional real-time callback invoked on every detected hit.
+     *                      Provides the wall-clock timestamp, the classified [DrumPart] (or null),
+     *                      and the normalised velocity (0.0–1.0) of the hit.
      */
     fun startRecording(
         pattern: List<BeatEvent>,
         bpm: Int,
-        onHitDetected: ((timestampMs: Long, part: DrumPart?) -> Unit)? = null
+        onHitDetected: ((timestampMs: Long, part: DrumPart?, velocity: Float) -> Unit)? = null
     ) {
         onsetDetector.reset()
         detectedHits.clear()
@@ -83,11 +86,12 @@ class AudioProcessor(
         )
 
         onsetDetector.onOnset = { timestampMs ->
-            val snippet = extractSnippet()
-            val part    = classifier.classify(snippet)
-            val wallMs  = recordingStartMs + timestampMs
+            val snippet  = extractSnippet()
+            val part     = classifier.classify(snippet)
+            val velocity = computeRms(snippet)
+            val wallMs   = recordingStartMs + timestampMs
             synchronized(detectedHits) { detectedHits.add(wallMs to part) }
-            onHitDetected?.invoke(wallMs, part)
+            onHitDetected?.invoke(wallMs, part, velocity)
         }
 
         audioRecord?.startRecording()
@@ -133,6 +137,11 @@ class AudioProcessor(
         val size = minOf(512, snippetBuffer.size)
         val start = (snippetWritePos - size).coerceAtLeast(0)
         return FloatArray(size) { snippetBuffer[(start + it) % snippetBuffer.size] }
+    }
+
+    private fun computeRms(signal: FloatArray): Float {
+        val sumSq = signal.fold(0.0) { acc, s -> acc + s * s }
+        return sqrt(sumSq / signal.size).toFloat()
     }
 
     /**

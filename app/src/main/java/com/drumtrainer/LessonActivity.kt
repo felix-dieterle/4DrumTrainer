@@ -150,8 +150,15 @@ class LessonActivity : AppCompatActivity() {
             )
         )
 
-        audioProcessor.startRecording(l.pattern, bpm) { _, _ ->
-            // Real-time hit feedback could update the UI here
+        audioProcessor.startRecording(l.pattern, bpm) { _, part, velocity ->
+            // Normalise RMS (typical range 0.01–0.5) to a 0-100 percentage
+            val pct  = (velocity / 0.5f * 100).toInt().coerceIn(0, 100)
+            val name = part?.displayName ?: getString(R.string.hit_unknown)
+            val label = getString(R.string.hit_indicator, name, pct)
+            runOnUiThread {
+                binding.textHitIndicator.visibility = View.VISIBLE
+                binding.textHitIndicator.text = label
+            }
         }
 
         startMetronome(bpm)
@@ -159,6 +166,9 @@ class LessonActivity : AppCompatActivity() {
         // Show scrolling note highway and start animation
         binding.noteScrollView.visibility = View.VISIBLE
         binding.noteScrollView.startScroll(expectedTimestamps)
+
+        binding.textHitIndicator.visibility = View.GONE
+        binding.textHitIndicator.text = ""
 
         binding.buttonStart.visibility = View.GONE
         binding.buttonStop.visibility  = View.VISIBLE
@@ -217,6 +227,7 @@ class LessonActivity : AppCompatActivity() {
         binding.drumKitView.activeParts = emptySet()
         binding.noteScrollView.stopScroll()
         binding.noteScrollView.visibility = View.GONE
+        binding.textHitIndicator.visibility = View.GONE
 
         val result     = audioProcessor.stopRecording(expectedTimestamps)
         val durationSec = ((System.currentTimeMillis() - sessionStartMs) / 1000).toInt()
