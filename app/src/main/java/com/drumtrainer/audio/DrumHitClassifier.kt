@@ -11,13 +11,22 @@ import kotlin.math.sqrt
  * The classifier computes the RMS energy in each band and picks the [DrumPart]
  * whose band has the highest relative energy.
  *
+ * Default frequency ranges come from the [DrumPart] enum.  When a [calibration]
+ * map is provided, those per-part ranges are used instead, allowing the app to
+ * adapt to the acoustic environment of each physical drum kit.
+ *
  * This is a lightweight substitute for a full FFT; it uses Goertzel-like
  * band-pass accumulation that is fast enough to run synchronously on the
  * audio processing thread.
  *
  * @param sampleRateHz  Recording sample rate (default: 44 100 Hz).
+ * @param calibration   Optional map of per-[DrumPart] (lowHz, highHz) overrides
+ *                      produced by [com.drumtrainer.audio.InstrumentCalibrator].
  */
-class DrumHitClassifier(private val sampleRateHz: Int = 44_100) {
+class DrumHitClassifier(
+    private val sampleRateHz: Int = 44_100,
+    private val calibration: Map<DrumPart, Pair<Int, Int>> = emptyMap()
+) {
 
     /**
      * Classifies [snippet] (normalised float PCM) and returns the most likely
@@ -31,7 +40,8 @@ class DrumHitClassifier(private val sampleRateHz: Int = 44_100) {
         if (rms < minEnergy) return null
 
         val bandEnergies = DrumPart.values().associateWith { part ->
-            bandRms(snippet, part.freqRangeLowHz, part.freqRangeHighHz)
+            val (low, high) = calibration[part] ?: (part.freqRangeLowHz to part.freqRangeHighHz)
+            bandRms(snippet, low, high)
         }
 
         return bandEnergies.maxByOrNull { it.value }?.key

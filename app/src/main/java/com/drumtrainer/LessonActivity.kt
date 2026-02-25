@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.drumtrainer.audio.AudioProcessor
+import com.drumtrainer.audio.DrumHitClassifier
 import com.drumtrainer.audio.DrumSoundPlayer
 import com.drumtrainer.data.CurriculumProvider
 import com.drumtrainer.data.DatabaseHelper
@@ -62,7 +63,9 @@ class LessonActivity : AppCompatActivity() {
 
         prefs          = PreferencesManager(this)
         db             = DatabaseHelper(this)
-        audioProcessor = AudioProcessor()
+        audioProcessor = AudioProcessor(
+            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations())
+        )
 
         loadLessonAndStudent()
 

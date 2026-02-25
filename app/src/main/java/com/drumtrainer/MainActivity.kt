@@ -88,5 +88,9 @@ class MainActivity : AppCompatActivity() {
         binding.buttonProfile.setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
         }
+
+        binding.buttonCalibrate.setOnClickListener {
+            startActivity(Intent(this, CalibrationActivity::class.java))
+        }
     }
 }
