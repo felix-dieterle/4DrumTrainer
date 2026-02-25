@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">4DrumTrainer</string>
+
+    <!-- Activity titles -->
+    <string name="title_profile">Student Profile</string>
+    <string name="title_lesson">Practice</string>
+    <string name="title_result">Results</string>
+
+    <!-- Main screen -->
+    <string name="welcome_student">Welcome, %1$s!</string>
+    <string name="student_age">Age: %1$d years</string>
+    <string name="your_progress">Your Progress</string>
+    <string name="lessons_completed">Lessons completed: %1$d</string>
+    <string name="start_lesson">Start Next Lesson</string>
+    <string name="edit_profile">Edit Profile</string>
+
+    <!-- Profile screen -->
+    <string name="profile_header">Student Profile</string>
+    <string name="hint_student_name">Student name</string>
+    <string name="label_birth_date">Date of birth</string>
+    <string name="pick_date">Pick date</string>
+    <string name="hint_no_date_selected">Not selected</string>
+    <string name="age_requirement_note">Courses are available for students aged 7 and above.</string>
+    <string name="save_profile">Save Profile</string>
+    <string name="profile_saved">Profile saved!</string>
+
+    <!-- Error messages -->
+    <string name="error_name_required">Please enter a name</string>
+    <string name="error_birth_date_required">Please select a date of birth</string>
+    <string name="error_too_young">Students must be at least %1$d years old to use this app.</string>
+    <string name="error_save_failed">Could not save profile. Please try again.</string>
+    <string name="error_no_student">No student profile found. Please create one first.</string>
+    <string name="error_mic_permission">Microphone permission is required for rhythm detection.</string>
+    <string name="all_lessons_complete">Congratulations — all lessons are complete!</string>
+
+    <!-- Lesson screen -->
+    <string name="bpm_display">Target BPM: %1$d</string>
+    <string name="estimated_time">~%1$d min</string>
+    <string name="status_ready">Press Start when you are ready</string>
+    <string name="status_recording">🎵 Listening… play along!</string>
+    <string name="start_recording">▶ Start</string>
+    <string name="stop_recording">■ Stop &amp; Submit</string>
+
+    <!-- Result screen -->
+    <string name="score_rhythm">Rhythm: %1$d%%</string>
+    <string name="score_pitch">Instrument accuracy: %1$d%%</string>
+    <string name="score_overall">Overall score: %1$d%%</string>
+    <string name="result_pass">✓ PASSED</string>
+    <string name="result_fail">✗ KEEP TRYING</string>
+    <string name="next_lesson">Next Lesson →</string>
+    <string name="try_again">Try Again</string>
+    <string name="go_home">Back to Home</string>
+
+    <!-- Encouragement messages -->
+    <string name="encouragement_excellent">Outstanding! You are a natural drummer! 🥁</string>
+    <string name="encouragement_good">Great job! Keep up the good work!</string>
+    <string name="encouragement_pass">Well done — you passed! Move on to the next lesson.</string>
+    <string name="encouragement_almost">Almost there! Try one more time — you\'re so close!</string>
+    <string name="encouragement_keep_trying">Don\'t give up! Every drummer starts somewhere. Try again!</string>
+
+    <!-- Curriculum level titles and descriptions -->
+    <string name="level_0_title">Level 1 – Getting Started</string>
+    <string name="level_0_desc">Learn to keep a steady beat on the hi-hat using quarter notes.</string>
+    <string name="level_1_title">Level 2 – The Basic Beat</string>
+    <string name="level_1_desc">Add bass drum on beats 1 &amp; 3 and snare on beats 2 &amp; 4.</string>
+    <string name="level_2_title">Level 3 – Eighth-Note Hi-Hat</string>
+    <string name="level_2_desc">Double up your hi-hat pattern to eighth notes for a groovier feel.</string>
+    <string name="level_3_title">Level 4 – Open Hi-Hat</string>
+    <string name="level_3_desc">Introduce the open hi-hat for extra expression.</string>
+    <string name="level_4_title">Level 5 – Tom Fills</string>
+    <string name="level_4_desc">Play your first single-stroke tom fill at the end of the bar.</string>
+    <string name="level_5_title">Level 6 – Crash &amp; Ride</string>
+    <string name="level_5_desc">Learn when to use the crash and ride cymbals.</string>
+    <string name="level_6_title">Level 7 – Sixteenth Notes</string>
+    <string name="level_6_desc">Speed up your hi-hat to sixteenth notes and add ghost notes.</string>
+    <string name="level_7_title">Level 8 – Advanced Fills</string>
+    <string name="level_7_desc">Master multi-tom fills and syncopated patterns.</string>
+
+    <!-- Lesson titles and descriptions -->
+    <string name="lesson_100_title">Hi-Hat Quarter Notes</string>
+    <string name="lesson_100_desc">Strike the hi-hat once on each beat (1-2-3-4) at 60 BPM. Focus on keeping steady timing.</string>
+    <string name="lesson_101_title">Hi-Hat Quarter Notes – Faster</string>
+    <string name="lesson_101_desc">Same pattern, slightly faster. Keep the tempo steady from beat 1 to beat 4.</string>
+    <string name="lesson_200_title">Basic Rock Beat</string>
+    <string name="lesson_200_desc">Play bass drum on beats 1 &amp; 3, snare on beats 2 &amp; 4, and hi-hat on all 4 beats.</string>
+    <string name="lesson_201_title">Basic Rock Beat – Faster</string>
+    <string name="lesson_201_desc">Same pattern at a slightly higher tempo. Keep the groove solid.</string>
+    <string name="lesson_300_title">Eighth-Note Hi-Hat</string>
+    <string name="lesson_300_desc">Add hi-hat on the "and" of every beat (1-and-2-and-3-and-4-and).</string>
+    <string name="lesson_301_title">Eighth-Note Hi-Hat – Faster</string>
+    <string name="lesson_301_desc">Same eighth-note hi-hat pattern at a higher tempo.</string>
+    <string name="lesson_400_title">Open Hi-Hat on 2 &amp; 4</string>
+    <string name="lesson_400_desc">Open the hi-hat slightly on beats 2 &amp; 4 to give the pattern a backbeat feel.</string>
+    <string name="lesson_500_title">Tom Fill on Beat 4</string>
+    <string name="lesson_500_desc">Play the basic beat but replace the last two eighth notes with tom hits as a fill.</string>
+    <string name="lesson_600_title">Ride Cymbal with Crash Accent</string>
+    <string name="lesson_600_desc">Switch from hi-hat to ride cymbal and hit the crash on beat 1 at the top of each bar.</string>
+    <string name="lesson_700_title">Sixteenth-Note Hi-Hat</string>
+    <string name="lesson_700_desc">Play the hi-hat on every sixteenth note (4 hits per beat) with bass and snare underneath.</string>
+    <string name="lesson_800_title">Advanced Four-Tom Fill</string>
+    <string name="lesson_800_desc">Play three bars of sixteenth-note groove, then a four-note tom fill to finish the phrase.</string>
+</resources>
