@@ -1,5 +1,6 @@
 package com.drumtrainer
 
+import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -22,6 +23,10 @@ import kotlin.math.abs
  * - **Tap** a pad → [onPadTapped] callback is invoked (e.g. to play a sound).
  * - **Drag** a pad → the pad moves to the new position; layout is saved to
  *   SharedPreferences and restored on next view creation.
+ * - **Tap the "+" button** (top-right corner) → shows a dialog to add a drum
+ *   that is not currently in the set.
+ * - **Drag a pad to the remove zone** (red strip at the bottom) → the drum is
+ *   removed from the set and the change is persisted.
  *
  * Set [activeParts] to highlight the pads the student should hit right now.
  */
@@ -89,6 +94,23 @@ class DrumKitView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = 3f
     }
+    private val removePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    private val removeTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    private val addButtonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#4CAF50")
+        style = Paint.Style.FILL
+    }
+    private val addLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
 
     private data class PadDef(
         val part: DrumPart,
@@ -98,12 +120,13 @@ class DrumKitView @JvmOverloads constructor(
         val isCymbal: Boolean
     )
 
+    // Master catalogue of all available pads with their default positions.
     // Positions mirror the approximate real-world layout visible in the product photo:
     //   – two cymbal pads on stands (left and far-right)
     //   – one ride cymbal (right, slightly inward)
     //   – snare and tom pads around the central module
     //   – large bass pad at bottom-right
-    private val padDefs = mutableListOf(
+    private val allDefaultPads = listOf(
         PadDef(DrumPart.HI_HAT_CLOSED, 0.14f, 0.20f, 0.09f, isCymbal = true),
         PadDef(DrumPart.HI_HAT_OPEN,   0.14f, 0.20f, 0.09f, isCymbal = true), // same physical pad
         PadDef(DrumPart.CRASH,         0.88f, 0.24f, 0.08f, isCymbal = true),
@@ -115,6 +138,9 @@ class DrumKitView @JvmOverloads constructor(
         PadDef(DrumPart.BASS_DRUM,     0.80f, 0.68f, 0.14f, isCymbal = false)
     )
 
+    // The currently active drum set (mutable, persisted to SharedPreferences).
+    private val padDefs = mutableListOf<PadDef>()
+
     // ── Drag state ────────────────────────────────────────────────────────────
 
     private var draggedIndex: Int = -1
@@ -122,13 +148,19 @@ class DrumKitView @JvmOverloads constructor(
     private var dragStartY:   Float = 0f
     private var dragOrigRelX: Float = 0f
     private var dragOrigRelY: Float = 0f
+    private var dragOverRemoveZone: Boolean = false
+
+    // ── Add button layout (computed during onDraw) ────────────────────────────
+    private var addButtonCx:     Float = 0f
+    private var addButtonCy:     Float = 0f
+    private var addButtonRadius: Float = 0f
 
     private val prefs by lazy {
         context.getSharedPreferences("drum_kit_layout", Context.MODE_PRIVATE)
     }
 
     init {
-        loadPositions()
+        loadPadSet()
     }
 
     // ── Measure / Draw ────────────────────────────────────────────────────────
@@ -230,6 +262,32 @@ class DrumKitView @JvmOverloads constructor(
             }
             canvas.drawText(padLabel(pad.part), cx, cy + labelPaint.textSize * 0.38f, labelPaint)
         }
+
+        // ── Remove zone (shown only while dragging) ───────────────────────────
+        if (draggedIndex >= 0) {
+            val zoneTop = h * (1f - REMOVE_ZONE_RATIO)
+            removePaint.color = if (dragOverRemoveZone)
+                Color.parseColor("#CCF44336")
+            else
+                Color.parseColor("#66F44336")
+            canvas.drawRect(0f, zoneTop, w, h, removePaint)
+            removeTextPaint.textSize = dpToPx(13f)
+            canvas.drawText(
+                "🗑  Drop here to remove",
+                w / 2f,
+                zoneTop + (h - zoneTop) / 2f + removeTextPaint.textSize * 0.4f,
+                removeTextPaint
+            )
+        }
+
+        // ── Add button ("+" in top-right corner) ─────────────────────────────
+        val btnR = dpToPx(16f)
+        addButtonCx     = w - btnR - dpToPx(6f)
+        addButtonCy     = btnR + dpToPx(6f)
+        addButtonRadius = btnR
+        canvas.drawCircle(addButtonCx, addButtonCy, btnR, addButtonPaint)
+        addLabelPaint.textSize = btnR * 1.1f
+        canvas.drawText("+", addButtonCx, addButtonCy + addLabelPaint.textSize * 0.36f, addLabelPaint)
     }
 
     // ── Touch ─────────────────────────────────────────────────────────────────
@@ -239,12 +297,18 @@ class DrumKitView @JvmOverloads constructor(
         val h = height.toFloat()
         return when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                // Check add button first (before pad hit-test)
+                if (isOverAddButton(event.x, event.y)) {
+                    showAddDialog()
+                    return true
+                }
                 draggedIndex = findPadAt(event.x, event.y, w, h)
                 if (draggedIndex >= 0) {
                     dragStartX   = event.x
                     dragStartY   = event.y
                     dragOrigRelX = padDefs[draggedIndex].relX
                     dragOrigRelY = padDefs[draggedIndex].relY
+                    dragOverRemoveZone = false
                     invalidate()
                     true
                 } else false
@@ -257,6 +321,7 @@ class DrumKitView @JvmOverloads constructor(
                     padDefs[draggedIndex].relY = (dragOrigRelY + dy).coerceIn(0.05f, 0.95f)
                     // Keep HI_HAT_OPEN in sync with HI_HAT_CLOSED (same physical pad)
                     syncHiHat()
+                    dragOverRemoveZone = event.y > h * (1f - REMOVE_ZONE_RATIO)
                     invalidate()
                     true
                 } else false
@@ -265,20 +330,75 @@ class DrumKitView @JvmOverloads constructor(
                 if (draggedIndex >= 0) {
                     val movedX = abs(event.x - dragStartX)
                     val movedY = abs(event.y - dragStartY)
-                    if (movedX < dpToPx(10f) && movedY < dpToPx(10f)) {
-                        // Short tap – invoke callback
-                        onPadTapped?.invoke(padDefs[draggedIndex].part)
-                    } else {
-                        // Drag ended – persist new layout
-                        savePositions()
+                    when {
+                        movedX < dpToPx(10f) && movedY < dpToPx(10f) -> {
+                            // Short tap – invoke callback
+                            onPadTapped?.invoke(padDefs[draggedIndex].part)
+                        }
+                        event.action == MotionEvent.ACTION_UP && dragOverRemoveZone -> {
+                            // Drag to remove zone – delete this pad from the set
+                            removePad(draggedIndex)
+                        }
+                        else -> {
+                            // Drag ended – persist new layout
+                            savePositions()
+                        }
                     }
                     draggedIndex = -1
+                    dragOverRemoveZone = false
                     invalidate()
                 }
                 true
             }
             else -> super.onTouchEvent(event)
         }
+    }
+
+    // ── Add / Remove ──────────────────────────────────────────────────────────
+
+    private fun isOverAddButton(x: Float, y: Float): Boolean {
+        val dx = x - addButtonCx
+        val dy = y - addButtonCy
+        val touchR = addButtonRadius * 1.5f
+        return dx * dx + dy * dy <= touchR * touchR
+    }
+
+    private fun showAddDialog() {
+        val existingParts = padDefs.map { it.part }.toSet()
+        // Offer all parts not yet in the set; skip HI_HAT_OPEN (always paired with CLOSED)
+        val available = allDefaultPads.filter {
+            it.part != DrumPart.HI_HAT_OPEN && it.part !in existingParts
+        }
+        if (available.isEmpty()) return
+        val names = available.map { it.part.displayName }.toTypedArray()
+        AlertDialog.Builder(context)
+            .setTitle(context.getString(R.string.add_drum))
+            .setItems(names) { _, which -> addPad(available[which]) }
+            .show()
+    }
+
+    private fun addPad(template: PadDef) {
+        // Place the new pad in the centre of the view
+        padDefs.add(template.copy(relX = 0.50f, relY = 0.45f))
+        // HI_HAT_CLOSED and HI_HAT_OPEN are always kept together
+        if (template.part == DrumPart.HI_HAT_CLOSED) {
+            val openDefault = allDefaultPads.first { it.part == DrumPart.HI_HAT_OPEN }
+            padDefs.add(openDefault.copy(relX = 0.50f, relY = 0.45f))
+        }
+        saveEnabledParts()
+        invalidate()
+    }
+
+    private fun removePad(index: Int) {
+        if (padDefs.count { it.part != DrumPart.HI_HAT_OPEN } <= 1) return // keep at least one visible pad
+        val part = padDefs[index].part
+        padDefs.removeAt(index)
+        // If the closed hi-hat is removed, also remove the open hi-hat entry
+        if (part == DrumPart.HI_HAT_CLOSED) {
+            padDefs.removeAll { it.part == DrumPart.HI_HAT_OPEN }
+        }
+        saveEnabledParts()
+        invalidate()
     }
 
     // ── Position persistence ──────────────────────────────────────────────────
@@ -292,12 +412,35 @@ class DrumKitView @JvmOverloads constructor(
         editor.apply()
     }
 
-    private fun loadPositions() {
+    private fun saveEnabledParts() {
+        val editor = prefs.edit()
+        editor.putStringSet("enabled_parts", padDefs.map { it.part.name }.toSet())
         for (pad in padDefs) {
-            val savedX = prefs.getFloat("relX_${pad.part.name}", pad.relX)
-            val savedY = prefs.getFloat("relY_${pad.part.name}", pad.relY)
-            pad.relX = savedX
-            pad.relY = savedY
+            editor.putFloat("relX_${pad.part.name}", pad.relX)
+            editor.putFloat("relY_${pad.part.name}", pad.relY)
+        }
+        editor.apply()
+    }
+
+    private fun loadPadSet() {
+        padDefs.clear()
+        val savedEnabled = prefs.getStringSet("enabled_parts", null)
+        if (savedEnabled == null) {
+            // First launch or legacy data – start with all defaults, respecting any saved positions
+            for (d in allDefaultPads) {
+                val x = prefs.getFloat("relX_${d.part.name}", d.relX)
+                val y = prefs.getFloat("relY_${d.part.name}", d.relY)
+                padDefs.add(d.copy(relX = x, relY = y))
+            }
+        } else {
+            // Restore saved drum set with saved positions
+            for (d in allDefaultPads) {
+                if (d.part.name in savedEnabled) {
+                    val x = prefs.getFloat("relX_${d.part.name}", d.relX)
+                    val y = prefs.getFloat("relY_${d.part.name}", d.relY)
+                    padDefs.add(d.copy(relX = x, relY = y))
+                }
+            }
         }
     }
 
@@ -365,4 +508,9 @@ class DrumKitView @JvmOverloads constructor(
     }
 
     private fun dpToPx(dp: Float): Float = dp * resources.displayMetrics.density
+
+    companion object {
+        /** Fraction of the view height reserved as the "drop to remove" zone. */
+        private const val REMOVE_ZONE_RATIO = 0.20f
+    }
 }
