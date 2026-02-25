@@ -26,27 +26,21 @@ jobs:
 
       - name: Setup keystore
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/debug.keystore
-          else
-            keytool -genkeypair -v \
-              -keystore app/debug.keystore \
-              -alias debugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug, O=Android, C=US" \
-              -storepass android \
-              -keypass android
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is not set. Every build must use the same" \
+                 "signing key so that users can install updates over previous versions." \
+                 "See the 'CI/CD — Automatic APK Releases' section in README.md for setup instructions."
+            exit 1
           fi
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/debug.keystore
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
         env:
           KEYSTORE_FILE: ${{ github.workspace }}/app/debug.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD != '' && secrets.KEYSTORE_PASSWORD || 'android' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS != '' && secrets.KEY_ALIAS || 'debugkey' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD != '' && secrets.KEY_PASSWORD || 'android' }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Get version name
         id: version
