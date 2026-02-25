@@ -41,6 +41,16 @@ class DrumKitView @JvmOverloads constructor(
             invalidate()
         }
 
+    /**
+     * Drum parts that were recently detected by the microphone, mapped to whether
+     * the hit was correct (true = green, false = red).
+     */
+    var hitResultParts: Map<DrumPart, Boolean> = emptyMap()
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#1A1A2E")
     }
@@ -155,17 +165,29 @@ class DrumKitView @JvmOverloads constructor(
             }
             val isDragging = index == draggedIndex
 
+            // Check if this pad was recently detected (null = not detected)
+            val hitCorrect = hitResultParts[pad.part]
+                ?: if (pad.part == DrumPart.HI_HAT_CLOSED) hitResultParts[DrumPart.HI_HAT_OPEN]
+                   else if (pad.part == DrumPart.HI_HAT_OPEN) hitResultParts[DrumPart.HI_HAT_CLOSED]
+                   else null
+
             val cx = w * pad.relX
             val cy = h * pad.relY
             val r  = minOf(w, h) * pad.relRadius
 
-            padFillPaint.color = padColor(pad.part, isActive)
-            rimPaint.color = when {
-                isDragging -> Color.parseColor("#FFCC00")
-                isActive   -> Color.WHITE
-                else       -> Color.parseColor("#555555")
+            padFillPaint.color = when (hitCorrect) {
+                true  -> Color.parseColor("#4CAF50") // green – correct instrument
+                false -> Color.parseColor("#F44336") // red   – wrong instrument
+                null  -> padColor(pad.part, isActive)
             }
-            rimPaint.strokeWidth = dpToPx(if (isActive || isDragging) 4f else 3f)
+            rimPaint.color = when {
+                isDragging        -> Color.parseColor("#FFCC00")
+                hitCorrect == true  -> Color.parseColor("#4CAF50")
+                hitCorrect == false -> Color.parseColor("#F44336")
+                isActive          -> Color.WHITE
+                else              -> Color.parseColor("#555555")
+            }
+            rimPaint.strokeWidth = dpToPx(if (isActive || isDragging || hitCorrect != null) 4f else 3f)
 
             if (pad.isCymbal) {
                 val oval = RectF(cx - r, cy - r * 0.32f, cx + r, cy + r * 0.32f)
@@ -178,13 +200,16 @@ class DrumKitView @JvmOverloads constructor(
                 // Inner ring for drum-head texture
                 rimPaint.strokeWidth = dpToPx(1.5f)
                 canvas.drawCircle(cx, cy, r * 0.55f, rimPaint)
-                rimPaint.strokeWidth = dpToPx(if (isActive || isDragging) 4f else 3f)
+                rimPaint.strokeWidth = dpToPx(if (isActive || isDragging || hitCorrect != null) 4f else 3f)
                 if (isDragging) canvas.drawCircle(cx, cy, r * 1.3f, dragHintPaint)
             }
 
             // Pad label
             labelPaint.textSize = minOf(w, h) * 0.052f
-            labelPaint.color = if (isActive || isDragging) Color.WHITE else Color.parseColor("#999999")
+            labelPaint.color = when {
+                hitCorrect != null || isActive || isDragging -> Color.WHITE
+                else -> Color.parseColor("#999999")
+            }
             canvas.drawText(padLabel(pad.part), cx, cy + labelPaint.textSize * 0.38f, labelPaint)
         }
     }
