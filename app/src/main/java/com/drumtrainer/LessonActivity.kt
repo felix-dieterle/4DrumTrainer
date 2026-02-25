@@ -156,29 +156,54 @@ class LessonActivity : AppCompatActivity() {
 
         startMetronome(bpm)
 
+        // Show scrolling note highway and start animation
+        binding.noteScrollView.visibility = View.VISIBLE
+        binding.noteScrollView.startScroll(expectedTimestamps)
+
         binding.buttonStart.visibility = View.GONE
         binding.buttonStop.visibility  = View.VISIBLE
         binding.textStatus.text        = getString(R.string.status_recording)
     }
 
     private fun startMetronome(bpm: Int) {
-        val intervalMs = (60_000L / bpm)
-        val beatsPerBar = lesson?.beatsPerBar ?: 4
+        val l = lesson ?: return
+        val subdivision = l.subdivision
+        val quarterNoteMs = (60_000L / bpm)
+        val tickMs = quarterNoteMs / subdivision
+        val beatsPerBar = l.beatsPerBar
+        val subBeatsPerBar = beatsPerBar * subdivision
         currentBeat = 0
 
         val tick = object : Runnable {
             override fun run() {
                 if (!isRecording) return
-                val isDownbeat = currentBeat % beatsPerBar == 0
-                binding.metronomeIndicator.setBackgroundResource(
-                    if (isDownbeat) R.drawable.beat_indicator_down else R.drawable.beat_indicator_up
-                )
+                val subBeatInBar = currentBeat % subBeatsPerBar
+                val isQuarterNote = subBeatInBar % subdivision == 0
+                val isDownbeat    = subBeatInBar == 0
+
+                // Flash metronome indicator on quarter-note beats only
+                if (isQuarterNote) {
+                    binding.metronomeIndicator.setBackgroundResource(
+                        if (isDownbeat) R.drawable.beat_indicator_down
+                        else            R.drawable.beat_indicator_up
+                    )
+                    metronomeHandler.postDelayed({
+                        binding.metronomeIndicator.setBackgroundResource(R.drawable.beat_indicator_off)
+                    }, tickMs / 4)
+                }
+
+                // Highlight the pads the student should hit on this sub-beat
+                val active = l.pattern
+                    .filter { it.beatIndex == subBeatInBar }
+                    .map { it.part }
+                    .toSet()
+                binding.drumKitView.activeParts = active
                 metronomeHandler.postDelayed({
-                    binding.metronomeIndicator.setBackgroundResource(R.drawable.beat_indicator_off)
-                }, intervalMs / 4)
+                    binding.drumKitView.activeParts = emptySet()
+                }, tickMs * 2 / 3)
 
                 currentBeat++
-                metronomeHandler.postDelayed(this, intervalMs)
+                metronomeHandler.postDelayed(this, tickMs)
             }
         }
         metronomeHandler.post(tick)
@@ -188,6 +213,10 @@ class LessonActivity : AppCompatActivity() {
         if (!isRecording) return
         isRecording = false
         metronomeHandler.removeCallbacksAndMessages(null)
+
+        binding.drumKitView.activeParts = emptySet()
+        binding.noteScrollView.stopScroll()
+        binding.noteScrollView.visibility = View.GONE
 
         val result     = audioProcessor.stopRecording(expectedTimestamps)
         val durationSec = ((System.currentTimeMillis() - sessionStartMs) / 1000).toInt()
