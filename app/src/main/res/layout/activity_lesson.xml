@@ -58,8 +58,23 @@
             android:layout_height="48dp"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="12dp"
             android:background="@drawable/beat_indicator_off" />
+
+        <!-- E-drum kit diagram: pads light up to show what to hit -->
+        <com.drumtrainer.DrumKitView
+            android:id="@+id/drumKitView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Scrolling note highway (visible only during recording) -->
+        <com.drumtrainer.NoteScrollView
+            android:id="@+id/noteScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone" />
 
         <!-- Beat pattern grid -->
         <com.google.android.material.card.MaterialCardView
