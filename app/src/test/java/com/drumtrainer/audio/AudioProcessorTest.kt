@@ -64,7 +64,7 @@ class AudioProcessorTest {
         val pattern = listOf(
             BeatEvent(3, 1, DrumPart.SNARE),
             BeatEvent(0, 1, DrumPart.BASS_DRUM),
-            BeatEvent(2, 1, DrumPart.TOM),
+            BeatEvent(2, 1, DrumPart.TOM_HIGH),
             BeatEvent(1, 1, DrumPart.HI_HAT_CLOSED)
         )
         val timestamps = processor.buildExpectedTimestamps(pattern, bpm = 60, bars = 1)
