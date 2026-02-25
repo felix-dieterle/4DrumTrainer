@@ -10,9 +10,13 @@
 .cxx
 local.properties
 
-# Signing keystores (never commit real keystores)
+# Signing keystores – do NOT commit production/release keystores.
+# The debug keystore (app/debug.keystore) is intentionally tracked so that
+# every CI build uses the same signing key and APK updates work without
+# needing to uninstall the previous version first.
 *.keystore
 *.jks
+!app/debug.keystore
 
 # Android Studio generated
 *.class
