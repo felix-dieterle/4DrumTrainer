@@ -6,8 +6,10 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import com.drumtrainer.model.DrumPart
+import kotlin.math.abs
 
 /**
  * Displays a top-down schematic of the compact e-drum kit.
@@ -16,6 +18,11 @@ import com.drumtrainer.model.DrumPart
  * the real layout shown in the product photo (two cymbal pads on stands, three
  * drum pads around a central control module, and one large bass pad).
  *
+ * Interactions:
+ * - **Tap** a pad → [onPadTapped] callback is invoked (e.g. to play a sound).
+ * - **Drag** a pad → the pad moves to the new position; layout is saved to
+ *   SharedPreferences and restored on next view creation.
+ *
  * Set [activeParts] to highlight the pads the student should hit right now.
  */
 class DrumKitView @JvmOverloads constructor(
@@ -23,6 +30,9 @@ class DrumKitView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyle: Int = 0
 ) : View(context, attrs, defStyle) {
+
+    /** Called when the user taps a pad (short touch without drag). */
+    var onPadTapped: ((DrumPart) -> Unit)? = null
 
     /** Drum parts that should be visually highlighted at this moment. */
     var activeParts: Set<DrumPart> = emptySet()
@@ -53,11 +63,16 @@ class DrumKitView @JvmOverloads constructor(
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
     }
+    private val dragHintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#44FFFFFF")
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+    }
 
     private data class PadDef(
         val part: DrumPart,
-        val relX: Float,
-        val relY: Float,
+        var relX: Float,
+        var relY: Float,
         val relRadius: Float,
         val isCymbal: Boolean
     )
@@ -67,7 +82,7 @@ class DrumKitView @JvmOverloads constructor(
     //   – one ride cymbal (right, slightly inward)
     //   – snare and tom pads around the central module
     //   – large bass pad at bottom-right
-    private val padDefs = listOf(
+    private val padDefs = mutableListOf(
         PadDef(DrumPart.HI_HAT_CLOSED, 0.14f, 0.20f, 0.09f, isCymbal = true),
         PadDef(DrumPart.HI_HAT_OPEN,   0.14f, 0.20f, 0.09f, isCymbal = true), // same physical pad
         PadDef(DrumPart.CRASH,         0.88f, 0.24f, 0.08f, isCymbal = true),
@@ -76,6 +91,24 @@ class DrumKitView @JvmOverloads constructor(
         PadDef(DrumPart.TOM,           0.58f, 0.50f, 0.10f, isCymbal = false),
         PadDef(DrumPart.BASS_DRUM,     0.80f, 0.68f, 0.14f, isCymbal = false)
     )
+
+    // ── Drag state ────────────────────────────────────────────────────────────
+
+    private var draggedIndex: Int = -1
+    private var dragStartX:   Float = 0f
+    private var dragStartY:   Float = 0f
+    private var dragOrigRelX: Float = 0f
+    private var dragOrigRelY: Float = 0f
+
+    private val prefs by lazy {
+        context.getSharedPreferences("drum_kit_layout", Context.MODE_PRIVATE)
+    }
+
+    init {
+        loadPositions()
+    }
+
+    // ── Measure / Draw ────────────────────────────────────────────────────────
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
@@ -108,44 +141,149 @@ class DrumKitView @JvmOverloads constructor(
         rimPaint.strokeWidth = dpToPx(3f)
 
         // Draw pads – deduplicate pads that share a position (HI_HAT_OPEN/CLOSED)
-        val drawn = mutableSetOf<Pair<Float, Float>>()
-        for (pad in padDefs) {
-            val key = pad.relX to pad.relY
-            if (key in drawn) continue
-            drawn.add(key)
+        val drawn = mutableSetOf<DrumPart>()
+        for ((index, pad) in padDefs.withIndex()) {
+            // Skip HI_HAT_OPEN since it shares position with HI_HAT_CLOSED
+            if (pad.part == DrumPart.HI_HAT_OPEN) continue
+            if (pad.part in drawn) continue
+            drawn.add(pad.part)
 
             val isActive = activeParts.any { p ->
                 p == pad.part ||
                     (pad.part == DrumPart.HI_HAT_CLOSED && p == DrumPart.HI_HAT_OPEN) ||
                     (pad.part == DrumPart.HI_HAT_OPEN   && p == DrumPart.HI_HAT_CLOSED)
             }
+            val isDragging = index == draggedIndex
 
             val cx = w * pad.relX
             val cy = h * pad.relY
             val r  = minOf(w, h) * pad.relRadius
 
             padFillPaint.color = padColor(pad.part, isActive)
-            rimPaint.color = if (isActive) Color.WHITE else Color.parseColor("#555555")
-            rimPaint.strokeWidth = dpToPx(if (isActive) 4f else 3f)
+            rimPaint.color = when {
+                isDragging -> Color.parseColor("#FFCC00")
+                isActive   -> Color.WHITE
+                else       -> Color.parseColor("#555555")
+            }
+            rimPaint.strokeWidth = dpToPx(if (isActive || isDragging) 4f else 3f)
 
             if (pad.isCymbal) {
                 val oval = RectF(cx - r, cy - r * 0.32f, cx + r, cy + r * 0.32f)
                 canvas.drawOval(oval, padFillPaint)
                 canvas.drawOval(oval, rimPaint)
+                if (isDragging) canvas.drawOval(RectF(cx - r * 1.3f, cy - r * 0.5f, cx + r * 1.3f, cy + r * 0.5f), dragHintPaint)
             } else {
                 canvas.drawCircle(cx, cy, r, padFillPaint)
                 canvas.drawCircle(cx, cy, r, rimPaint)
                 // Inner ring for drum-head texture
                 rimPaint.strokeWidth = dpToPx(1.5f)
                 canvas.drawCircle(cx, cy, r * 0.55f, rimPaint)
-                rimPaint.strokeWidth = dpToPx(if (isActive) 4f else 3f)
+                rimPaint.strokeWidth = dpToPx(if (isActive || isDragging) 4f else 3f)
+                if (isDragging) canvas.drawCircle(cx, cy, r * 1.3f, dragHintPaint)
             }
 
             // Pad label
             labelPaint.textSize = minOf(w, h) * 0.052f
-            labelPaint.color = if (isActive) Color.WHITE else Color.parseColor("#999999")
+            labelPaint.color = if (isActive || isDragging) Color.WHITE else Color.parseColor("#999999")
             canvas.drawText(padLabel(pad.part), cx, cy + labelPaint.textSize * 0.38f, labelPaint)
         }
+    }
+
+    // ── Touch ─────────────────────────────────────────────────────────────────
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        return when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                draggedIndex = findPadAt(event.x, event.y, w, h)
+                if (draggedIndex >= 0) {
+                    dragStartX   = event.x
+                    dragStartY   = event.y
+                    dragOrigRelX = padDefs[draggedIndex].relX
+                    dragOrigRelY = padDefs[draggedIndex].relY
+                    invalidate()
+                    true
+                } else false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (draggedIndex >= 0) {
+                    val dx = (event.x - dragStartX) / w
+                    val dy = (event.y - dragStartY) / h
+                    padDefs[draggedIndex].relX = (dragOrigRelX + dx).coerceIn(0.05f, 0.95f)
+                    padDefs[draggedIndex].relY = (dragOrigRelY + dy).coerceIn(0.05f, 0.95f)
+                    // Keep HI_HAT_OPEN in sync with HI_HAT_CLOSED (same physical pad)
+                    syncHiHat()
+                    invalidate()
+                    true
+                } else false
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (draggedIndex >= 0) {
+                    val movedX = abs(event.x - dragStartX)
+                    val movedY = abs(event.y - dragStartY)
+                    if (movedX < dpToPx(10f) && movedY < dpToPx(10f)) {
+                        // Short tap – invoke callback
+                        onPadTapped?.invoke(padDefs[draggedIndex].part)
+                    } else {
+                        // Drag ended – persist new layout
+                        savePositions()
+                    }
+                    draggedIndex = -1
+                    invalidate()
+                }
+                true
+            }
+            else -> super.onTouchEvent(event)
+        }
+    }
+
+    // ── Position persistence ──────────────────────────────────────────────────
+
+    private fun savePositions() {
+        val editor = prefs.edit()
+        for (pad in padDefs) {
+            editor.putFloat("relX_${pad.part.name}", pad.relX)
+            editor.putFloat("relY_${pad.part.name}", pad.relY)
+        }
+        editor.apply()
+    }
+
+    private fun loadPositions() {
+        for (pad in padDefs) {
+            val savedX = prefs.getFloat("relX_${pad.part.name}", pad.relX)
+            val savedY = prefs.getFloat("relY_${pad.part.name}", pad.relY)
+            pad.relX = savedX
+            pad.relY = savedY
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the index into [padDefs] of the pad closest to ([x], [y]) within
+     * its touch radius, or -1 if no pad was hit.
+     */
+    private fun findPadAt(x: Float, y: Float, w: Float, h: Float): Int {
+        val touchRadius = dpToPx(24f) // generous touch target
+        for ((i, pad) in padDefs.withIndex()) {
+            if (pad.part == DrumPart.HI_HAT_OPEN) continue // skip duplicate hi-hat entry
+            val cx = w * pad.relX
+            val cy = h * pad.relY
+            val r  = minOf(w, h) * pad.relRadius + touchRadius
+            val dx = x - cx
+            val dy = y - cy
+            if (dx * dx + dy * dy <= r * r) return i
+        }
+        return -1
+    }
+
+    /** Keeps HI_HAT_OPEN position in sync with HI_HAT_CLOSED (same physical pad). */
+    private fun syncHiHat() {
+        val closed = padDefs.firstOrNull { it.part == DrumPart.HI_HAT_CLOSED } ?: return
+        val open   = padDefs.firstOrNull { it.part == DrumPart.HI_HAT_OPEN   } ?: return
+        open.relX = closed.relX
+        open.relY = closed.relY
     }
 
     private fun padColor(part: DrumPart, active: Boolean): Int {

@@ -3,16 +3,20 @@ package com.drumtrainer
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.drumtrainer.audio.AudioProcessor
-import com.drumtrainer.audio.RhythmEvaluator
+import com.drumtrainer.audio.DrumSoundPlayer
 import com.drumtrainer.data.CurriculumProvider
 import com.drumtrainer.data.DatabaseHelper
 import com.drumtrainer.data.PreferencesManager
@@ -22,6 +26,7 @@ import com.drumtrainer.model.DrumPart
 import com.drumtrainer.model.Lesson
 import com.drumtrainer.model.LessonProgress
 import com.drumtrainer.model.Student
+import kotlin.math.abs
 
 /**
  * The core practice screen.
@@ -63,6 +68,9 @@ class LessonActivity : AppCompatActivity() {
 
         binding.buttonStart.setOnClickListener { requestMicPermissionAndStart() }
         binding.buttonStop.setOnClickListener  { stopSession() }
+
+        // Tapping a pad on the drum kit plays its synthesised sound
+        binding.drumKitView.onPadTapped = { part -> DrumSoundPlayer.play(part) }
     }
 
     private fun loadLessonAndStudent() {
@@ -150,14 +158,11 @@ class LessonActivity : AppCompatActivity() {
             )
         )
 
-        audioProcessor.startRecording(l.pattern, bpm) { _, part, velocity ->
-            // Normalise RMS (typical range 0.01–0.5) to a 0-100 percentage
-            val pct  = (velocity / 0.5f * 100).toInt().coerceIn(0, 100)
-            val name = part?.displayName ?: getString(R.string.hit_unknown)
-            val label = getString(R.string.hit_indicator, name, pct)
+        audioProcessor.startRecording(l.pattern, bpm) { timestampMs, part, velocity ->
+            val feedback = buildHitFeedback(timestampMs, part, velocity)
             runOnUiThread {
                 binding.textHitIndicator.visibility = View.VISIBLE
-                binding.textHitIndicator.text = label
+                binding.textHitIndicator.text = feedback
             }
         }
 
@@ -175,6 +180,47 @@ class LessonActivity : AppCompatActivity() {
         binding.textStatus.text        = getString(R.string.status_recording)
     }
 
+    /**
+     * Builds a colour-coded [CharSequence] showing rhythm timing and instrument
+     * accuracy for the most recently detected hit.
+     */
+    private fun buildHitFeedback(
+        timestampMs: Long,
+        part: DrumPart?,
+        velocity: Float
+    ): CharSequence {
+        val pct = (velocity / 0.5f * 100).toInt().coerceIn(0, 100)
+        val name = part?.displayName ?: getString(R.string.hit_unknown)
+
+        // Find nearest expected hit and evaluate timing / part accuracy
+        val timingWindowMs = 150L
+        val nearest = expectedTimestamps.minByOrNull { abs(it.first - timestampMs) }
+        val inTime      = nearest != null && abs(nearest.first - timestampMs) <= timingWindowMs
+        val correctPart = nearest != null && nearest.second == part
+
+        val rhythmMark = if (inTime) "✓" else "✗"
+        val partMark   = if (correctPart) "✓" else "✗"
+        val rhythmColor = if (inTime) Color.parseColor("#66BB6A") else Color.parseColor("#EF5350")
+        val partColor   = if (correctPart) Color.parseColor("#66BB6A") else Color.parseColor("#EF5350")
+
+        return SpannableStringBuilder().apply {
+            val rhythmStr = "$rhythmMark ${getString(R.string.feedback_rhythm)}  "
+            append(rhythmStr)
+            setSpan(
+                ForegroundColorSpan(rhythmColor),
+                0, rhythmStr.length,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            val partStr = "$partMark $name ($pct%)"
+            append(partStr)
+            setSpan(
+                ForegroundColorSpan(partColor),
+                rhythmStr.length, rhythmStr.length + partStr.length,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+    }
+
     private fun startMetronome(bpm: Int) {
         val l = lesson ?: return
         val subdivision = l.subdivision
@@ -183,24 +229,13 @@ class LessonActivity : AppCompatActivity() {
         val beatsPerBar = l.beatsPerBar
         val subBeatsPerBar = beatsPerBar * subdivision
         currentBeat = 0
+        val metronomeStartMs = System.currentTimeMillis()
 
         val tick = object : Runnable {
             override fun run() {
                 if (!isRecording) return
                 val subBeatInBar = currentBeat % subBeatsPerBar
-                val isQuarterNote = subBeatInBar % subdivision == 0
-                val isDownbeat    = subBeatInBar == 0
-
-                // Flash metronome indicator on quarter-note beats only
-                if (isQuarterNote) {
-                    binding.metronomeIndicator.setBackgroundResource(
-                        if (isDownbeat) R.drawable.beat_indicator_down
-                        else            R.drawable.beat_indicator_up
-                    )
-                    metronomeHandler.postDelayed({
-                        binding.metronomeIndicator.setBackgroundResource(R.drawable.beat_indicator_off)
-                    }, tickMs / 4)
-                }
+                val isDownbeat   = subBeatInBar == 0
 
                 // Highlight the pads the student should hit on this sub-beat
                 val active = l.pattern
@@ -208,12 +243,29 @@ class LessonActivity : AppCompatActivity() {
                     .map { it.part }
                     .toSet()
                 binding.drumKitView.activeParts = active
+
+                // Flash beat indicator on every sub-beat that has an active hit
+                // (and always on the downbeat) so it stays in sync with the drum kit.
+                if (active.isNotEmpty() || isDownbeat) {
+                    binding.metronomeIndicator.setBackgroundResource(
+                        if (isDownbeat) R.drawable.beat_indicator_down
+                        else            R.drawable.beat_indicator_up
+                    )
+                    metronomeHandler.postDelayed({
+                        binding.metronomeIndicator.setBackgroundResource(R.drawable.beat_indicator_off)
+                    }, tickMs / 3)
+                }
+
                 metronomeHandler.postDelayed({
                     binding.drumKitView.activeParts = emptySet()
                 }, tickMs * 2 / 3)
 
                 currentBeat++
-                metronomeHandler.postDelayed(this, tickMs)
+
+                // Anchor next tick to the wall clock to prevent cumulative drift
+                val nextTickMs = metronomeStartMs + currentBeat * tickMs
+                val delay = (nextTickMs - System.currentTimeMillis()).coerceAtLeast(0L)
+                metronomeHandler.postDelayed(this, delay)
             }
         }
         metronomeHandler.post(tick)
