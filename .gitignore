@@ -10,6 +10,10 @@
 .cxx
 local.properties
 
+# Signing keystores (never commit real keystores)
+*.keystore
+*.jks
+
 # Android Studio generated
 *.class
 *.dex

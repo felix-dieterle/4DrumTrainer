@@ -175,3 +175,52 @@ A lesson is marked **passed** when `overallScore ≥ lesson.passThresholdPct`.  
 ```bash
 ./gradlew :app:testDebugUnitTest
 ```
+
+---
+
+## CI/CD — Automatic APK Releases
+
+Every push to `main` triggers the **Build and Release APK** GitHub Actions workflow
+(`.github/workflows/build-release.yml`).  The workflow:
+
+1. Builds a **debug APK** signed with a **consistent keystore** stored in GitHub Secrets.
+2. Creates a **GitHub Release** (tagged `v<versionName>-build<run_number>`) and attaches
+   the APK so users can download and sideload it directly.
+
+Because the same keystore is used for every build, a newly released APK can be installed
+over a previously installed version without uninstalling first (standard Android update flow).
+
+### One-time keystore setup (repository maintainer)
+
+Run the following commands once to create the signing keystore and upload its contents as
+GitHub Secrets:
+
+```bash
+# 1. Generate a keystore (keep the generated file somewhere safe)
+keytool -genkeypair \
+  -v \
+  -keystore debug-release.keystore \
+  -alias drumtrainer \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000 \
+  -storepass <STORE_PASSWORD> \
+  -keypass  <KEY_PASSWORD> \
+  -dname "CN=4DrumTrainer, O=4DrumTrainer, C=DE"
+
+# 2. Encode the keystore as base64
+base64 -w 0 debug-release.keystore > debug-release.keystore.b64
+```
+
+Then add the following **GitHub Actions secrets** under
+*Settings → Secrets and variables → Actions*:
+
+| Secret name        | Value                                        |
+|--------------------|----------------------------------------------|
+| `KEYSTORE_BASE64`  | Contents of `debug-release.keystore.b64`     |
+| `KEYSTORE_PASSWORD`| `<STORE_PASSWORD>` chosen above              |
+| `KEY_ALIAS`        | `drumtrainer`                                |
+| `KEY_PASSWORD`     | `<KEY_PASSWORD>` chosen above                |
+
+> **Important:** keep the `.keystore` file and passwords in a safe place.
+> Losing them means future builds cannot update existing installations.
