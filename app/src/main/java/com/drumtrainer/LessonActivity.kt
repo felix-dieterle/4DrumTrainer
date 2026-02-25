@@ -166,7 +166,14 @@ class LessonActivity : AppCompatActivity() {
             }
         }
 
-        startMetronome(bpm)
+        startMetronome(bpm, sessionStartMs)
+
+        // Auto-stop after all expected beats have played, with a small grace period
+        if (expectedTimestamps.isNotEmpty()) {
+            val stopDelayMs = (expectedTimestamps.last().first - System.currentTimeMillis() + 300L)
+                .coerceAtLeast(0L)
+            metronomeHandler.postDelayed({ stopSession() }, stopDelayMs)
+        }
 
         // Show scrolling note highway and start animation
         binding.noteScrollView.visibility = View.VISIBLE
@@ -221,7 +228,7 @@ class LessonActivity : AppCompatActivity() {
         }
     }
 
-    private fun startMetronome(bpm: Int) {
+    private fun startMetronome(bpm: Int, startMs: Long) {
         val l = lesson ?: return
         val subdivision = l.subdivision
         val quarterNoteMs = (60_000L / bpm)
@@ -229,7 +236,7 @@ class LessonActivity : AppCompatActivity() {
         val beatsPerBar = l.beatsPerBar
         val subBeatsPerBar = beatsPerBar * subdivision
         currentBeat = 0
-        val metronomeStartMs = System.currentTimeMillis()
+        val metronomeStartMs = startMs
 
         val tick = object : Runnable {
             override fun run() {
