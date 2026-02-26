@@ -309,6 +309,9 @@ class DrumKitView @JvmOverloads constructor(
                     dragOrigRelX = padDefs[draggedIndex].relX
                     dragOrigRelY = padDefs[draggedIndex].relY
                     dragOverRemoveZone = false
+                    // Prevent parent ScrollView from intercepting touch events
+                    // during a drag so that vertical drags are not stolen.
+                    parent?.requestDisallowInterceptTouchEvent(true)
                     invalidate()
                     true
                 } else false
@@ -326,7 +329,8 @@ class DrumKitView @JvmOverloads constructor(
                     true
                 } else false
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            MotionEvent.ACTION_UP -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
                 if (draggedIndex >= 0) {
                     val movedX = abs(event.x - dragStartX)
                     val movedY = abs(event.y - dragStartY)
@@ -336,10 +340,11 @@ class DrumKitView @JvmOverloads constructor(
                     dragOverRemoveZone = event.y > h * (1f - REMOVE_ZONE_RATIO)
                     when {
                         movedX < dpToPx(10f) && movedY < dpToPx(10f) -> {
-                            // Short tap – invoke callback
+                            // Short tap – restore exact position and invoke callback
+                            restoreDraggedPosition()
                             onPadTapped?.invoke(padDefs[draggedIndex].part)
                         }
-                        event.actionMasked == MotionEvent.ACTION_UP && dragOverRemoveZone -> {
+                        dragOverRemoveZone -> {
                             // Drag to remove zone – delete this pad from the set
                             removePad(draggedIndex)
                         }
@@ -348,6 +353,17 @@ class DrumKitView @JvmOverloads constructor(
                             savePositions()
                         }
                     }
+                    draggedIndex = -1
+                    dragOverRemoveZone = false
+                    invalidate()
+                }
+                true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
+                if (draggedIndex >= 0) {
+                    // Restore original position on cancel (e.g. system interruption)
+                    restoreDraggedPosition()
                     draggedIndex = -1
                     dragOverRemoveZone = false
                     invalidate()
@@ -466,6 +482,14 @@ class DrumKitView @JvmOverloads constructor(
             if (dx * dx + dy * dy <= r * r) return i
         }
         return -1
+    }
+
+    /** Snaps the dragged pad back to the position recorded at drag-start. */
+    private fun restoreDraggedPosition() {
+        if (draggedIndex < 0) return
+        padDefs[draggedIndex].relX = dragOrigRelX
+        padDefs[draggedIndex].relY = dragOrigRelY
+        syncHiHat()
     }
 
     /** Keeps HI_HAT_OPEN position in sync with HI_HAT_CLOSED (same physical pad). */
