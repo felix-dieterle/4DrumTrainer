@@ -12,12 +12,15 @@ import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.drumtrainer.audio.AdaptationManager
 import com.drumtrainer.audio.AudioProcessor
 import com.drumtrainer.audio.DrumHitClassifier
 import com.drumtrainer.audio.DrumSoundPlayer
+import com.drumtrainer.audio.InstrumentCalibrator
 import com.drumtrainer.data.CurriculumProvider
 import com.drumtrainer.data.DatabaseHelper
 import com.drumtrainer.data.PreferencesManager
@@ -52,6 +55,9 @@ class LessonActivity : AppCompatActivity() {
     private val metronomeHandler = Handler(Looper.getMainLooper())
     private var currentBeat = 0
     private var isRecording = false
+
+    /** Noise floor threshold measured during the adaptation phase. */
+    private var adaptationNoiseThreshold: Float = 0f
 
     private val expectedTimestamps = mutableListOf<Pair<Long, DrumPart>>()
 
@@ -139,7 +145,7 @@ class LessonActivity : AppCompatActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             == PackageManager.PERMISSION_GRANTED
         ) {
-            startSession()
+            startAdaptationPhase()
         } else {
             ActivityCompat.requestPermissions(
                 this, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO
@@ -154,10 +160,135 @@ class LessonActivity : AppCompatActivity() {
         if (requestCode == REQUEST_RECORD_AUDIO &&
             grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
         ) {
-            startSession()
+            startAdaptationPhase()
         } else {
             Toast.makeText(this, R.string.error_mic_permission, Toast.LENGTH_LONG).show()
         }
+    }
+
+    // ── Adaptation phase ──────────────────────────────────────────────────────
+
+    /**
+     * Runs the warm-up adaptation phase before the training session.
+     *
+     * The user is asked to hit every instrument in the current drum set once.
+     * The phase measures the ambient noise floor and records which pads were
+     * detected.  Unrecognised instruments are then handled via [showUnrecognizedWizard].
+     */
+    private fun startAdaptationPhase() {
+        binding.buttonStart.visibility = View.GONE
+        binding.adaptationPanel.visibility = View.VISIBLE
+        binding.progressAdaptation.progress = 0
+        binding.textAdaptationStatus.text = getString(R.string.adaptation_status_listening)
+
+        val enabledParts = binding.drumKitView.enabledParts
+        val adaptationManager = AdaptationManager(
+            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations())
+        )
+
+        Thread {
+            adaptationManager.run(
+                enabledParts  = enabledParts,
+                onProgress    = { pct ->
+                    runOnUiThread { binding.progressAdaptation.progress = pct }
+                },
+                onHitDetected = { part ->
+                    runOnUiThread {
+                        binding.textAdaptationStatus.text =
+                            getString(R.string.adaptation_hit_detected, part.displayName)
+                        binding.drumKitView.freeParts = binding.drumKitView.freeParts + part
+                    }
+                }
+            ) { result ->
+                runOnUiThread { handleAdaptationResult(result) }
+            }
+        }.start()
+    }
+
+    private fun handleAdaptationResult(result: AdaptationManager.Result) {
+        adaptationNoiseThreshold = result.noiseThreshold
+        binding.drumKitView.freeParts = emptySet()
+        binding.adaptationPanel.visibility = View.GONE
+
+        if (result.unrecognizedParts.isEmpty()) {
+            startSession()
+        } else {
+            showUnrecognizedWizard(result.unrecognizedParts.toList(), 0) {
+                startSession()
+            }
+        }
+    }
+
+    /**
+     * Wizard that steps through [parts] one at a time.
+     *
+     * For each part the pad is highlighted in the drum kit view and the user
+     * can choose to calibrate it (record 3 hits) or remove it from the set.
+     */
+    private fun showUnrecognizedWizard(
+        parts: List<DrumPart>,
+        index: Int,
+        onFinished: () -> Unit
+    ) {
+        if (index >= parts.size) {
+            binding.drumKitView.activeParts = emptySet()
+            onFinished()
+            return
+        }
+        val part = parts[index]
+        val next = { showUnrecognizedWizard(parts, index + 1, onFinished) }
+
+        // Highlight the unrecognised instrument in the drum kit diagram
+        binding.drumKitView.activeParts = setOf(part)
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.adaptation_wizard_title, part.displayName))
+            .setMessage(R.string.adaptation_wizard_message)
+            .setPositiveButton(R.string.adaptation_wizard_calibrate) { _, _ ->
+                binding.drumKitView.activeParts = emptySet()
+                startWizardCalibration(part) { next() }
+            }
+            .setNegativeButton(R.string.adaptation_wizard_remove) { _, _ ->
+                binding.drumKitView.activeParts = emptySet()
+                binding.drumKitView.removePart(part)
+                next()
+            }
+            .setNeutralButton(R.string.adaptation_wizard_skip) { _, _ ->
+                binding.drumKitView.activeParts = emptySet()
+                next()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    /**
+     * Records 3 seconds of audio for [part] and saves the calibration to
+     * [PreferencesManager].  The [AudioProcessor] is rebuilt afterwards so
+     * the new calibration takes effect in the session.
+     */
+    private fun startWizardCalibration(part: DrumPart, onDone: () -> Unit) {
+        binding.textStatus.text = getString(R.string.adaptation_calibrating, part.displayName)
+
+        Thread {
+            InstrumentCalibrator().record(durationMs = 3_000) { lowHz, highHz ->
+                runOnUiThread {
+                    if (lowHz != null && highHz != null) {
+                        prefs.setCalibration(part, lowHz, highHz)
+                        Toast.makeText(
+                            this,
+                            getString(R.string.adaptation_calibration_done, part.displayName),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        // Rebuild the processor so the new calibration is active
+                        audioProcessor = AudioProcessor(
+                            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations())
+                        )
+                    }
+                    binding.textStatus.text = getString(R.string.status_ready)
+                    onDone()
+                }
+            }
+        }.start()
     }
 
     private fun startSession() {
@@ -171,6 +302,12 @@ class LessonActivity : AppCompatActivity() {
             AgeGroup.CHILD          -> l.targetBpmMin
             AgeGroup.YOUNG          -> (l.targetBpmMin + l.targetBpmMax) / 2
             AgeGroup.TEEN_AND_ABOVE -> l.targetBpmMax
+        }
+
+        // Apply the noise floor measured during the adaptation phase so that
+        // ambient background noise does not trigger spurious hit detections.
+        if (adaptationNoiseThreshold > 0f) {
+            audioProcessor.setNoiseFloor(adaptationNoiseThreshold)
         }
 
         expectedTimestamps.clear()

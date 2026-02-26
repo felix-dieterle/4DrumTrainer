@@ -98,6 +98,19 @@
 
     <string name="add_drum">Add Drum</string>
 
+    <!-- Adaptation phase (warm-up before training) -->
+    <string name="adaptation_instruction">🥁 Please hit each instrument at least once so the app can detect your drum kit and measure background noise levels.</string>
+    <string name="adaptation_status_listening">🎙 Listening… hit each instrument once!</string>
+    <string name="adaptation_hit_detected">✓ %1$s detected</string>
+    <string name="adaptation_complete">Adaptation complete. Starting training…</string>
+    <string name="adaptation_wizard_title">Instrument not detected: %1$s</string>
+    <string name="adaptation_wizard_message">This instrument was not recognized during the adaptation phase. What would you like to do?</string>
+    <string name="adaptation_wizard_calibrate">🎚 Calibrate (3 hits)</string>
+    <string name="adaptation_wizard_remove">🗑 Remove from kit</string>
+    <string name="adaptation_wizard_skip">Skip</string>
+    <string name="adaptation_calibrating">🎙 Recording %1$s… hit it 3 times!</string>
+    <string name="adaptation_calibration_done">✓ %1$s calibrated!</string>
+
     <!-- Teacher / music school search -->
     <string name="title_teacher_search">Lehrer finden</string>
     <string name="find_teacher">🗺️ Lehrer in der Nähe finden</string>

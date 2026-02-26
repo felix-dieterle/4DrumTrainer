@@ -42,6 +42,13 @@ class OnsetDetector(
      */
     @Volatile private var suppressUntilMs: Long = 0L
 
+    /**
+     * Absolute minimum RMS below which frames are ignored (noise floor filter).
+     * Set this to the noise threshold returned by [com.drumtrainer.audio.AdaptationManager]
+     * to prevent ambient background noise from triggering spurious onsets.
+     */
+    var absoluteMinRms: Float = 0f
+
     /** Listener invoked on every confirmed onset. */
     var onOnset: ((timestampMs: Long) -> Unit)? = null
 
@@ -73,6 +80,9 @@ class OnsetDetector(
         // Skip onset detection while suppressed (e.g. during playback to avoid feedback)
         if (System.currentTimeMillis() < suppressUntilMs) return
 
+        // Skip if the frame is below the absolute noise floor (set during adaptation phase)
+        if (rms <= absoluteMinRms) return
+
         if (rms > onsetThresholdFactor * background && gapOk) {
             lastOnsetTimeMs = timestampMs
             onOnset?.invoke(timestampMs)
@@ -91,6 +101,7 @@ class OnsetDetector(
         lastOnsetTimeMs = -1L
         totalSamplesProcessed = 0L
         suppressUntilMs = 0L
+        absoluteMinRms = 0f
     }
 
     /**
