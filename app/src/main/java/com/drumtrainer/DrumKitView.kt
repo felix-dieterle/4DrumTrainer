@@ -184,10 +184,14 @@ class DrumKitView @JvmOverloads constructor(
             dpToPx(8f), dpToPx(8f), modulePaint
         )
 
-        // Cymbal stands (vertical lines from pad base to floor)
-        canvas.drawLine(w * 0.14f, h * 0.29f, w * 0.14f, h * 0.80f, standPaint)
-        canvas.drawLine(w * 0.72f, h * 0.22f, w * 0.72f, h * 0.80f, standPaint)
-        canvas.drawLine(w * 0.88f, h * 0.32f, w * 0.88f, h * 0.80f, standPaint)
+        // Cymbal stands (vertical lines from pad base to floor, follow pad positions)
+        for (pad in padDefs) {
+            if (!pad.isCymbal || pad.part == DrumPart.HI_HAT_OPEN) continue
+            val cx = w * pad.relX
+            val cy = h * pad.relY
+            val r  = minOf(w, h) * pad.relRadius
+            canvas.drawLine(cx, cy + r * 0.32f, cx, h * 0.80f, standPaint)
+        }
 
         // Floor / base bar
         rimPaint.color = Color.parseColor("#555555")
@@ -476,10 +480,19 @@ class DrumKitView @JvmOverloads constructor(
             if (pad.part == DrumPart.HI_HAT_OPEN) continue // skip duplicate hi-hat entry
             val cx = w * pad.relX
             val cy = h * pad.relY
-            val r  = minOf(w, h) * pad.relRadius + touchRadius
+            val r  = minOf(w, h) * pad.relRadius
             val dx = x - cx
             val dy = y - cy
-            if (dx * dx + dy * dy <= r * r) return i
+            val hit = if (pad.isCymbal) {
+                // Use elliptical hit-test matching the drawn oval shape
+                val rx = r + touchRadius
+                val ry = r * 0.32f + touchRadius
+                (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1f
+            } else {
+                val touchR = r + touchRadius
+                dx * dx + dy * dy <= touchR * touchR
+            }
+            if (hit) return i
         }
         return -1
     }
