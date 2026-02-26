@@ -36,6 +36,12 @@ class OnsetDetector(
     /** Total number of processed samples – used to derive absolute timestamps. */
     private var totalSamplesProcessed: Long = 0L
 
+    /**
+     * Wall-clock time (ms) until which onset detection is suppressed.
+     * Set by [suppressFor] to prevent acoustic feedback when the app plays back audio.
+     */
+    @Volatile private var suppressUntilMs: Long = 0L
+
     /** Listener invoked on every confirmed onset. */
     var onOnset: ((timestampMs: Long) -> Unit)? = null
 
@@ -64,6 +70,9 @@ class OnsetDetector(
         val timestampMs = (frameStartSample * 1000L) / sampleRateHz
         val gapOk = lastOnsetTimeMs < 0 || (timestampMs - lastOnsetTimeMs) >= minOnsetGapMs
 
+        // Skip onset detection while suppressed (e.g. during playback to avoid feedback)
+        if (System.currentTimeMillis() < suppressUntilMs) return
+
         if (rms > onsetThresholdFactor * background && gapOk) {
             lastOnsetTimeMs = timestampMs
             onOnset?.invoke(timestampMs)
@@ -81,5 +90,15 @@ class OnsetDetector(
         rmsHistory.clear()
         lastOnsetTimeMs = -1L
         totalSamplesProcessed = 0L
+        suppressUntilMs = 0L
+    }
+
+    /**
+     * Temporarily suppresses onset detection for [durationMs] milliseconds.
+     * Call this whenever the app plays back audio to avoid acoustic feedback
+     * from the speaker being re-captured by the microphone.
+     */
+    fun suppressFor(durationMs: Long) {
+        suppressUntilMs = System.currentTimeMillis() + durationMs
     }
 }

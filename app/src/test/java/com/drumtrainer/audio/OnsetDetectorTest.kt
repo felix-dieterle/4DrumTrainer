@@ -76,4 +76,47 @@ class OnsetDetectorTest {
         detector.feed(signal)
         assertTrue("Gap enforcement should suppress the second close trigger", onsets.size <= 1)
     }
+
+    @Test
+    fun `suppressFor blocks onsets during suppression window`() {
+        val detector = OnsetDetector(
+            sampleRateHz = 44_100,
+            frameSize = 512,
+            onsetThresholdFactor = 2.0f,
+            minOnsetGapMs = 80
+        )
+        val onsets = mutableListOf<Long>()
+        detector.onOnset = { ts -> onsets.add(ts) }
+
+        // Suppress for 5 seconds (much longer than any realistic test)
+        detector.suppressFor(5_000L)
+
+        val signal = FloatArray(44_100)
+        for (i in 2048..2560) signal[i] = 1.0f
+
+        detector.feed(signal)
+        assertEquals("No onset should fire while suppressed", 0, onsets.size)
+    }
+
+    @Test
+    fun `reset clears suppression state`() {
+        val detector = OnsetDetector(
+            sampleRateHz = 44_100,
+            frameSize = 512,
+            onsetThresholdFactor = 2.0f,
+            minOnsetGapMs = 80
+        )
+        val onsets = mutableListOf<Long>()
+        detector.onOnset = { ts -> onsets.add(ts) }
+
+        // Suppress for a long time, then reset – onsets should be detected again
+        detector.suppressFor(60_000L)
+        detector.reset()
+
+        val signal = FloatArray(44_100)
+        for (i in 2048..2560) signal[i] = 1.0f
+
+        detector.feed(signal)
+        assertTrue("Onset should be detected after suppression is cleared by reset", onsets.size >= 1)
+    }
 }

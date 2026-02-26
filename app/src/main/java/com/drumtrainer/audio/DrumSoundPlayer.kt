@@ -19,6 +19,9 @@ object DrumSoundPlayer {
 
     private const val SAMPLE_RATE = 44_100
 
+    /** Extra silence after playback ends, in milliseconds, before re-enabling input. */
+    private const val RELEASE_DURATION_MS = 60L
+
     /** Play the characteristic synthesised sound for [part] in a background thread. */
     fun play(part: DrumPart) {
         val samples = when (part) {
@@ -53,7 +56,7 @@ object DrumSoundPlayer {
                     .build()
                 track.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
                 track.play()
-                Thread.sleep((samples.size * 1000L / SAMPLE_RATE) + 60L)
+                Thread.sleep((samples.size * 1000L / SAMPLE_RATE) + RELEASE_DURATION_MS)
                 track.stop()
                 track.release()
             } catch (_: Exception) {
@@ -63,6 +66,23 @@ object DrumSoundPlayer {
     }
 
     // ── Synthesisers ──────────────────────────────────────────────────────────
+
+    /**
+     * Returns the playback duration in milliseconds for the synthesised sound
+     * of [part].  Use this to suppress microphone input for exactly as long as
+     * the sound plays, preventing acoustic feedback.
+     */
+    fun soundDurationMs(part: DrumPart): Long = when (part) {
+        DrumPart.BASS_DRUM     -> 200L + RELEASE_DURATION_MS
+        DrumPart.SNARE         -> 160L + RELEASE_DURATION_MS
+        DrumPart.HI_HAT_CLOSED -> 60L  + RELEASE_DURATION_MS
+        DrumPart.HI_HAT_OPEN   -> 220L + RELEASE_DURATION_MS
+        DrumPart.TOM_HIGH      -> 190L + RELEASE_DURATION_MS
+        DrumPart.TOM_MID       -> 190L + RELEASE_DURATION_MS
+        DrumPart.TOM_FLOOR     -> 190L + RELEASE_DURATION_MS
+        DrumPart.RIDE          -> 400L + RELEASE_DURATION_MS
+        DrumPart.CRASH         -> 650L + RELEASE_DURATION_MS
+    }
 
     private fun bassDrum(): FloatArray {
         val size = SAMPLE_RATE * 200 / 1000

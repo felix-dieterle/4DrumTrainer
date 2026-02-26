@@ -133,6 +133,17 @@ class AudioProcessor(
         return evaluator.evaluate(expectedTimestamps, hits)
     }
 
+    /**
+     * Temporarily suppresses onset detection for [durationMs] milliseconds.
+     *
+     * Call this immediately after triggering audio playback via [DrumSoundPlayer]
+     * to prevent the speaker output from being re-captured by the microphone and
+     * producing spurious hit detections (acoustic feedback loop).
+     */
+    fun suppressInputFor(durationMs: Long) {
+        onsetDetector.suppressFor(durationMs)
+    }
+
     private fun extractSnippet(): FloatArray {
         val size = minOf(512, snippetBuffer.size)
         val start = (snippetWritePos - size).coerceAtLeast(0)

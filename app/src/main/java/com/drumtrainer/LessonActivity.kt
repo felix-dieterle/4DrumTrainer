@@ -72,8 +72,14 @@ class LessonActivity : AppCompatActivity() {
         binding.buttonStart.setOnClickListener { requestMicPermissionAndStart() }
         binding.buttonStop.setOnClickListener  { stopSession() }
 
-        // Tapping a pad on the drum kit plays its synthesised sound
-        binding.drumKitView.onPadTapped = { part -> DrumSoundPlayer.play(part) }
+        // Tapping a pad on the drum kit plays its synthesised sound and
+        // temporarily suppresses microphone input to avoid acoustic feedback.
+        binding.drumKitView.onPadTapped = { part ->
+            DrumSoundPlayer.play(part)
+            if (isRecording) {
+                audioProcessor.suppressInputFor(DrumSoundPlayer.soundDurationMs(part))
+            }
+        }
     }
 
     private fun loadLessonAndStudent() {
