@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -44,6 +45,12 @@ class MainActivity : AppCompatActivity() {
 
         prefs = PreferencesManager(this)
         db    = DatabaseHelper(this)
+
+        Toast.makeText(
+            this,
+            "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            Toast.LENGTH_SHORT
+        ).show()
 
         if (prefs.isFirstLaunch || prefs.activeStudentId == -1L) {
             startActivity(Intent(this, ProfileActivity::class.java))
