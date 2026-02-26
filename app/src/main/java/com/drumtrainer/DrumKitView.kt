@@ -295,7 +295,7 @@ class DrumKitView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val w = width.toFloat()
         val h = height.toFloat()
-        return when (event.action) {
+        return when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 // Check add button first (before pad hit-test)
                 if (isOverAddButton(event.x, event.y)) {
@@ -330,12 +330,16 @@ class DrumKitView @JvmOverloads constructor(
                 if (draggedIndex >= 0) {
                     val movedX = abs(event.x - dragStartX)
                     val movedY = abs(event.y - dragStartY)
+                    // Re-evaluate remove-zone membership at lift time so that a quick
+                    // finger movement that wasn't captured by a MOVE event still
+                    // triggers deletion when the finger is released in the zone.
+                    dragOverRemoveZone = event.y > h * (1f - REMOVE_ZONE_RATIO)
                     when {
                         movedX < dpToPx(10f) && movedY < dpToPx(10f) -> {
                             // Short tap – invoke callback
                             onPadTapped?.invoke(padDefs[draggedIndex].part)
                         }
-                        event.action == MotionEvent.ACTION_UP && dragOverRemoveZone -> {
+                        event.actionMasked == MotionEvent.ACTION_UP && dragOverRemoveZone -> {
                             // Drag to remove zone – delete this pad from the set
                             removePad(draggedIndex)
                         }
