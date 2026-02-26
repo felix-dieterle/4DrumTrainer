@@ -140,6 +140,10 @@ class MainActivity : AppCompatActivity() {
         binding.buttonCalibrate.setOnClickListener {
             startActivity(Intent(this, CalibrationActivity::class.java))
         }
+
+        binding.buttonFindTeacher.setOnClickListener {
+            startActivity(Intent(this, TeacherSearchActivity::class.java))
+        }
     }
 
     private fun requestFreePlayMicIfNeeded() {
