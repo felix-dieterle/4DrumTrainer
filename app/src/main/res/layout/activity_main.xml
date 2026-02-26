@@ -168,6 +168,15 @@
             android:text="@string/calibrate_instruments"
             android:padding="12dp" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonFindTeacher"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/find_teacher"
+            android:padding="12dp" />
+
     </LinearLayout>
 
 </ScrollView>

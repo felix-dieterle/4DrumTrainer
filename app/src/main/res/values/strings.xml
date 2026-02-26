@@ -91,6 +91,25 @@
 
     <string name="add_drum">Add Drum</string>
 
+    <!-- Teacher / music school search -->
+    <string name="title_teacher_search">Lehrer finden</string>
+    <string name="find_teacher">🗺️ Lehrer in der Nähe finden</string>
+    <string name="teacher_search_title">🎵 Schlagzeuglehrer finden</string>
+    <string name="teacher_search_subtitle">Finde Musikschulen und Schlagzeuglehrer in deiner Nähe.\nDaten aus OpenStreetMap – kostenlos &amp; ohne Anmeldung.</string>
+    <string name="teacher_search_use_location">📍 Meinen Standort verwenden</string>
+    <string name="teacher_search_or">– oder –</string>
+    <string name="teacher_search_city_hint">Stadt oder Postleitzahl eingeben</string>
+    <string name="teacher_search_by_city">🔍 In dieser Stadt suchen</string>
+    <string name="teacher_search_no_results">Keine Musikschulen in einem Umkreis von 15 km gefunden.\nVersuche einen anderen Ort oder öffne die Karte direkt.</string>
+    <string name="teacher_search_open_maps">🌍 In Google Maps suchen</string>
+    <string name="distance_km">%1$s km entfernt</string>
+    <string name="distance_meters">%1$d m entfernt</string>
+    <string name="error_city_required">Bitte gib eine Stadt oder Postleitzahl ein</string>
+    <string name="error_location_permission">Standortberechtigung wird benötigt</string>
+    <string name="error_location_unavailable">Standort konnte nicht ermittelt werden. Bitte gib eine Stadt ein.</string>
+    <string name="error_city_not_found">Stadt nicht gefunden. Bitte prüfe die Schreibweise.</string>
+    <string name="error_search_failed">Suche fehlgeschlagen. Bitte Internetverbindung prüfen.</string>
+
 
     <string name="level_0_title">Level 1 – Getting Started</string>
     <string name="level_0_desc">Learn to keep a steady beat on the hi-hat using quarter notes.</string>
