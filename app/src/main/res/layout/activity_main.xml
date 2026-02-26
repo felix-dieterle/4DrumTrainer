@@ -150,6 +150,15 @@
             android:textSize="18sp"
             android:padding="16dp" />
 
+        <TextView
+            android:id="@+id/textCheatMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/cheat_mode_active"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonProfile"
             style="@style/Widget.Material3.Button.OutlinedButton"
