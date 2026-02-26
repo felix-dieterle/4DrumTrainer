@@ -120,8 +120,14 @@ class MainActivity : AppCompatActivity() {
         binding.textMedalSilver.text = getString(R.string.medal_count_silver, silver)
         binding.textMedalGold.text   = getString(R.string.medal_count_gold, gold)
 
-        // Tapping a pad on the drum kit plays its synthesised sound
-        binding.drumKitView.onPadTapped = { part -> DrumSoundPlayer.play(part) }
+        // Tapping a pad on the drum kit plays its synthesised sound and
+        // temporarily suppresses microphone input to avoid acoustic feedback.
+        binding.drumKitView.onPadTapped = { part ->
+            DrumSoundPlayer.play(part)
+            if (isFreePlayListening) {
+                audioProcessor.suppressInputFor(DrumSoundPlayer.soundDurationMs(part))
+            }
+        }
 
         binding.buttonStartLesson.setOnClickListener {
             startActivity(Intent(this, LessonActivity::class.java))
