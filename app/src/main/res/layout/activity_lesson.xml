@@ -115,6 +115,39 @@
             android:layout_marginBottom="16dp"
             android:text="@string/status_ready" />
 
+        <!-- Adaptation phase panel (visible while warm-up recording is running) -->
+        <LinearLayout
+            android:id="@+id/adaptationPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/adaptation_instruction"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp" />
+
+            <ProgressBar
+                android:id="@+id/progressAdaptation"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="16dp"
+                android:max="100"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/textAdaptationStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
         <!-- Action buttons -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonStart"

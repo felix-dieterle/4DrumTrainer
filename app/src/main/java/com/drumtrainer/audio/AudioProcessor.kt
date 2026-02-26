@@ -144,6 +144,18 @@ class AudioProcessor(
         onsetDetector.suppressFor(durationMs)
     }
 
+    /**
+     * Sets the absolute noise floor threshold on the onset detector.
+     *
+     * Any audio frame whose RMS is at or below [threshold] will be ignored,
+     * preventing ambient background noise from triggering spurious drum-hit
+     * detections during a training session.  The value should come from
+     * [com.drumtrainer.audio.AdaptationManager.Result.noiseThreshold].
+     */
+    fun setNoiseFloor(threshold: Float) {
+        onsetDetector.absoluteMinRms = threshold
+    }
+
     private fun extractSnippet(): FloatArray {
         val size = minOf(512, snippetBuffer.size)
         val start = (snippetWritePos - size).coerceAtLeast(0)

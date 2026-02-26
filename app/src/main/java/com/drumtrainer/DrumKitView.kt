@@ -39,6 +39,10 @@ class DrumKitView @JvmOverloads constructor(
     /** Called when the user taps a pad (short touch without drag). */
     var onPadTapped: ((DrumPart) -> Unit)? = null
 
+    /** Returns the set of drum parts currently active in the drum set. */
+    val enabledParts: Set<DrumPart>
+        get() = padDefs.map { it.part }.toSet()
+
     /** Drum parts that should be visually highlighted at this moment. */
     var activeParts: Set<DrumPart> = emptySet()
         set(value) {
@@ -423,6 +427,16 @@ class DrumKitView @JvmOverloads constructor(
         }
         saveEnabledParts()
         invalidate()
+    }
+
+    /**
+     * Removes [part] from the active drum set and persists the change.
+     * If [part] is [DrumPart.HI_HAT_CLOSED], the paired [DrumPart.HI_HAT_OPEN] entry
+     * is also removed.  Does nothing if [part] is not in the current set.
+     */
+    fun removePart(part: DrumPart) {
+        val index = padDefs.indexOfFirst { it.part == part }
+        if (index >= 0) removePad(index)
     }
 
     // ── Position persistence ──────────────────────────────────────────────────
