@@ -57,7 +57,7 @@ jobs:
           body: |
             Debug APK built from commit ${{ github.sha }}.
 
-            Install on your device by downloading `app-debug.apk` below.
+            Install on your device by downloading the `4drum-*.apk` file below.
             Every build is signed with the same key, so you can install this update over a previously installed version without uninstalling first.
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: app/build/outputs/apk/debug/4drum-*.apk
           token: ${{ secrets.GITHUB_TOKEN }}
