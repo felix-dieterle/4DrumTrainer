@@ -7,7 +7,9 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -130,8 +132,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.buttonStartLesson.setOnClickListener {
-            startActivity(Intent(this, LessonActivity::class.java))
+            if (prefs.cheatModeEnabled) {
+                showLessonPicker()
+            } else {
+                startActivity(Intent(this, LessonActivity::class.java))
+            }
         }
+
+        binding.buttonStartLesson.setOnLongClickListener {
+            toggleCheatMode()
+            true
+        }
+
+        // Show / hide cheat mode indicator
+        binding.textCheatMode.visibility =
+            if (prefs.cheatModeEnabled) View.VISIBLE else View.GONE
 
         binding.buttonProfile.setOnClickListener {
             startActivity(Intent(this, ProfileActivity::class.java))
@@ -179,6 +194,32 @@ class MainActivity : AppCompatActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         audioProcessor.stopRecording(emptyList())
         binding.drumKitView.freeParts = emptySet()
+    }
+
+    private fun toggleCheatMode() {
+        prefs.cheatModeEnabled = !prefs.cheatModeEnabled
+        val msgRes = if (prefs.cheatModeEnabled) R.string.cheat_mode_enabled_msg
+                     else                         R.string.cheat_mode_disabled_msg
+        Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+        binding.textCheatMode.visibility =
+            if (prefs.cheatModeEnabled) View.VISIBLE else View.GONE
+    }
+
+    private fun showLessonPicker() {
+        val allLessons = CurriculumProvider.curriculum.levels.flatMap { it.lessons }
+        val labels = allLessons.map { lesson ->
+            getString(lesson.titleRes)
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.cheat_mode_select_lesson)
+            .setItems(labels) { _, index ->
+                val intent = Intent(this, LessonActivity::class.java).apply {
+                    putExtra(LessonActivity.EXTRA_LESSON_ID, allLessons[index].id)
+                }
+                startActivity(intent)
+            }
+            .show()
     }
 
     companion object {

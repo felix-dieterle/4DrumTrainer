@@ -91,8 +91,21 @@ class LessonActivity : AppCompatActivity() {
             return
         }
 
+        val requestedLessonId = intent.getLongExtra(EXTRA_LESSON_ID, -1L)
         val passedIds = db.getPassedLessonIds(studentId)
-        lesson = CurriculumProvider.curriculum.nextLesson(student!!, passedIds)
+        lesson = if (requestedLessonId != -1L) {
+            val found = CurriculumProvider.curriculum.levels
+                .flatMap { it.lessons }
+                .firstOrNull { it.id == requestedLessonId }
+            if (found == null) {
+                Toast.makeText(this, R.string.error_lesson_not_found, Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+            found
+        } else {
+            CurriculumProvider.curriculum.nextLesson(student!!, passedIds)
+        }
         if (lesson == null) {
             Toast.makeText(this, R.string.all_lessons_complete, Toast.LENGTH_LONG).show()
             finish()
@@ -361,5 +374,6 @@ class LessonActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 1001
+        const val EXTRA_LESSON_ID = "extra_lesson_id"
     }
 }

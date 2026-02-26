@@ -18,6 +18,12 @@
     <string name="calibrate_instruments">🎚 Calibrate Instruments</string>
     <string name="free_play_label">🥁 Freies Spiel – spiel einfach drauf los!</string>
 
+    <!-- Cheat mode -->
+    <string name="cheat_mode_active">🔓 Cheat-Modus aktiv – alle Lektionen freigeschaltet</string>
+    <string name="cheat_mode_enabled_msg">Cheat-Modus aktiviert 🔓</string>
+    <string name="cheat_mode_disabled_msg">Cheat-Modus deaktiviert 🔒</string>
+    <string name="cheat_mode_select_lesson">Lektion auswählen</string>
+
     <!-- Profile screen -->
     <string name="profile_header">Student Profile</string>
     <string name="hint_student_name">Student name</string>
@@ -35,6 +41,7 @@
     <string name="error_save_failed">Could not save profile. Please try again.</string>
     <string name="error_no_student">No student profile found. Please create one first.</string>
     <string name="error_mic_permission">Microphone permission is required for rhythm detection.</string>
+    <string name="error_lesson_not_found">Lektion nicht gefunden.</string>
     <string name="all_lessons_complete">Congratulations — all lessons are complete!</string>
 
     <!-- Lesson screen -->
