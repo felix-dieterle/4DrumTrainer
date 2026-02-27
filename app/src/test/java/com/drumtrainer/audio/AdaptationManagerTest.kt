@@ -110,4 +110,39 @@ class AdaptationManagerTest {
         )
         assertEquals(expected, result.noiseThreshold, 1e-6f)
     }
+
+    // ── computeMedianNoise ────────────────────────────────────────────────────
+
+    @Test
+    fun `computeMedianNoise of empty list returns zero`() {
+        assertEquals(0f, manager.computeMedianNoise(emptyList()), 0f)
+    }
+
+    @Test
+    fun `computeMedianNoise of single value returns that value`() {
+        assertEquals(0.05f, manager.computeMedianNoise(listOf(0.05f)), 1e-6f)
+    }
+
+    @Test
+    fun `computeMedianNoise returns middle value of odd-length list`() {
+        val values = listOf(0.01f, 0.02f, 0.03f, 0.04f, 0.05f)
+        assertEquals(0.03f, manager.computeMedianNoise(values), 1e-6f)
+    }
+
+    @Test
+    fun `computeMedianNoise is robust to outlier spikes`() {
+        // Large outlier should not inflate the median the way it would inflate the mean.
+        val values = listOf(0.01f, 0.02f, 0.02f, 0.02f, 1.00f)  // one huge spike
+        val median = manager.computeMedianNoise(values)
+        assertTrue(
+            "Median ($median) should be near the bulk of the values, not inflated by the spike",
+            median < 0.10f
+        )
+    }
+
+    @Test
+    fun `computeMedianNoise of unsorted list gives correct median`() {
+        val values = listOf(0.05f, 0.01f, 0.03f, 0.02f, 0.04f)
+        assertEquals(0.03f, manager.computeMedianNoise(values), 1e-6f)
+    }
 }

@@ -2,6 +2,7 @@ package com.drumtrainer.audio
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlin.math.sin
 
 class OnsetDetectorTest {
 
@@ -118,5 +119,51 @@ class OnsetDetectorTest {
 
         detector.feed(signal)
         assertTrue("Onset should be detected after suppression is cleared by reset", onsets.size >= 1)
+    }
+
+    @Test
+    fun `spectral flux suppresses onset on gradual energy rise`() {
+        // A signal that grows uniformly cannot cause the spectral flux to jump
+        // above the rolling average flux, so the flux criterion should remain
+        // unsatisfied and no onset should fire.
+        val detector = OnsetDetector(
+            sampleRateHz = 44_100,
+            frameSize = 512,
+            onsetThresholdFactor = 3.0f,
+            spectralFluxFactor = 1.5f,
+            minOnsetGapMs = 80
+        )
+        var count = 0
+        detector.onOnset = { count++ }
+
+        // ~0.5 s of a 440 Hz tone with amplitude growing linearly from 0 → 0.5
+        val n = 22_050
+        val signal = FloatArray(n) { i ->
+            (i.toFloat() / n * 0.5f * sin(2.0 * Math.PI * 440.0 * i / 44_100)).toFloat()
+        }
+
+        detector.feed(signal)
+        assertEquals("Gradual energy rise should not trigger onset", 0, count)
+    }
+
+    @Test
+    fun `spectral flux parameter is accepted without changing basic detection`() {
+        // Verify that providing an explicit spectralFluxFactor does not break
+        // the fundamental impulse-detection behaviour.
+        val detector = OnsetDetector(
+            sampleRateHz = 44_100,
+            frameSize = 512,
+            onsetThresholdFactor = 2.0f,
+            spectralFluxFactor = 1.5f,
+            minOnsetGapMs = 80
+        )
+        val onsets = mutableListOf<Long>()
+        detector.onOnset = { ts -> onsets.add(ts) }
+
+        val signal = FloatArray(44_100)
+        for (i in 2048..2560) signal[i] = 1.0f
+
+        detector.feed(signal)
+        assertEquals("Broadband impulse should still trigger exactly one onset", 1, onsets.size)
     }
 }
