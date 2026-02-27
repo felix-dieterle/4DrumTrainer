@@ -10,6 +10,16 @@ import kotlin.math.sin
  * Records a short microphone sample while the user strikes a single drum
  * instrument, then estimates the dominant frequency band for that instrument.
  *
+ * Improvements over a naïve peak-frequency approach:
+ * - A **Hann window** is applied to each snippet before the DFT to suppress
+ *   spectral leakage, giving a more accurate dominant-frequency estimate.
+ * - When enough onset samples have been collected (≥ 4 hits), the calibrated
+ *   frequency band is derived from the **interquartile range** (Q1–Q3) of
+ *   detected peak frequencies rather than a fixed ratio of the median.  This
+ *   produces tighter, instrument-specific bands that improve classification
+ *   accuracy, especially for instruments with overlapping default ranges (e.g.
+ *   snare vs. hi-tom).
+ *
  * Typical usage:
  * ```
  * val calibrator = InstrumentCalibrator()
@@ -102,17 +112,33 @@ class InstrumentCalibrator(
             return
         }
 
-        val medianPeak = peakFrequencies.sorted()[peakFrequencies.size / 2]
-        // Band: half the peak frequency as lower bound, triple as upper bound,
-        // clamped to audible/practical limits.
-        val low  = (medianPeak / 2).coerceAtLeast(20)
-        val high = (medianPeak * 3).coerceAtMost(20_000)
+        val sorted = peakFrequencies.sorted()
+        val low: Int
+        val high: Int
+        if (sorted.size >= 4) {
+            // IQR-based band: use Q1 and Q3 of collected peak frequencies, then
+            // expand outward by 50 % in each direction to cover harmonic spread.
+            val q1 = sorted[sorted.size / 4]
+            val q3 = sorted[(3 * sorted.size) / 4]
+            low  = (q1 / 2).coerceAtLeast(20)
+            high = (q3 * 2).coerceAtMost(20_000)
+        } else {
+            // Fall back to median-based estimation when few hits were detected.
+            val medianPeak = sorted[sorted.size / 2]
+            low  = (medianPeak / 2).coerceAtLeast(20)
+            high = (medianPeak * 3).coerceAtMost(20_000)
+        }
         onComplete(low, high)
     }
 
     /**
      * Returns the frequency (Hz) of the DFT bin with the highest energy in
      * [snippet].  Searches between 50 Hz and 10 000 Hz.
+     *
+     * A **Hann window** is applied before the DFT to suppress spectral leakage
+     * caused by the implicit rectangular window of a finite sample block.
+     * This improves the accuracy of the dominant-frequency estimate, especially
+     * when the true frequency falls between two DFT bin centres.
      *
      * This is `internal` so it can be tested directly without starting the mic.
      */
@@ -121,6 +147,9 @@ class InstrumentCalibrator(
         val lowBin  = (50.0     * n / sampleRateHz).toInt().coerceIn(1, n / 2)
         val highBin = (10_000.0 * n / sampleRateHz).toInt().coerceIn(lowBin + 1, n / 2)
 
+        // Apply Hann window to reduce spectral leakage before the DFT.
+        val windowed = AudioUtils.applyHannWindow(snippet)
+
         var peakBin    = lowBin
         var peakEnergy = 0.0
 
@@ -128,9 +157,9 @@ class InstrumentCalibrator(
             var re = 0.0
             var im = 0.0
             val angle = 2.0 * Math.PI * k / n
-            for (i in snippet.indices) {
-                re += snippet[i] * cos(angle * i)
-                im += snippet[i] * sin(angle * i)
+            for (i in windowed.indices) {
+                re += windowed[i] * cos(angle * i)
+                im += windowed[i] * sin(angle * i)
             }
             val energy = re * re + im * im
             if (energy > peakEnergy) {

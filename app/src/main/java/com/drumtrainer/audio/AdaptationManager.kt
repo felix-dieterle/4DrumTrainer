@@ -17,6 +17,12 @@ import kotlin.math.sqrt
  * - After [durationMs] milliseconds, reports which of the [enabledParts] were
  *   never struck (unrecognised instruments).
  *
+ * Noise-floor estimation uses the **median** RMS of quiet frames rather than
+ * the arithmetic mean.  The median is robust to the occasional loud transient
+ * (e.g. a background sound that slips through the onset guard window) that
+ * would otherwise inflate a mean-based estimate and produce an over-aggressive
+ * noise threshold.
+ *
  * Typical usage (from a background thread):
  * ```
  * val manager = AdaptationManager()
@@ -44,7 +50,7 @@ class AdaptationManager(
     /**
      * Result of the adaptation phase.
      *
-     * @property noiseThreshold    Measured RMS noise floor × [NOISE_SAFETY_FACTOR].
+     * @property noiseThreshold    Measured median RMS noise floor × [NOISE_SAFETY_FACTOR].
      *                             Pass to [AudioProcessor.setNoiseFloor] so quiet
      *                             background noise does not trigger spurious onsets
      *                             during the training session.
@@ -97,8 +103,7 @@ class AdaptationManager(
         var snippetWritePos = 0
 
         val detectedParts = mutableSetOf<DrumPart>()
-        var noiseRmsSum = 0.0
-        var noiseFrameCount = 0
+        val noiseRmsValues = mutableListOf<Float>()
         var lastOnsetTimeMs = -1L
 
         onsetDetector.onOnset = {
@@ -137,17 +142,19 @@ class AdaptationManager(
             // These chunks approximate the ambient noise floor.
             val nowMs = System.currentTimeMillis()
             if (lastOnsetTimeMs < 0 || nowMs - lastOnsetTimeMs > QUIET_GUARD_MS) {
-                val rms = computeRms(floatBuffer.copyOf(read))
-                noiseRmsSum += rms
-                noiseFrameCount++
+                noiseRmsValues.add(computeRms(floatBuffer.copyOf(read)))
             }
         }
 
         audioRecord.stop()
         audioRecord.release()
 
-        val avgNoise      = if (noiseFrameCount > 0) (noiseRmsSum / noiseFrameCount).toFloat() else 0f
-        val noiseThreshold = avgNoise * NOISE_SAFETY_FACTOR
+        // Use the median of collected quiet-frame RMS values instead of the
+        // arithmetic mean. The median is more robust to occasional loud transients
+        // that slip through the onset guard window and would otherwise inflate a
+        // mean-based estimate, leading to an over-aggressive noise threshold.
+        val medianNoise   = computeMedianNoise(noiseRmsValues)
+        val noiseThreshold = medianNoise * NOISE_SAFETY_FACTOR
         val unrecognized  = computeUnrecognizedParts(enabledParts, detectedParts)
 
         onComplete(Result(noiseThreshold, detectedParts.toSet(), unrecognized))
@@ -172,6 +179,17 @@ class AdaptationManager(
         }
         associated.none { it in detectedParts }
     }.toSet()
+
+    /**
+     * Returns the median of [values], or 0 if [values] is empty.
+     *
+     * `internal` for unit testing.
+     */
+    internal fun computeMedianNoise(values: List<Float>): Float {
+        if (values.isEmpty()) return 0f
+        val sorted = values.sorted()
+        return sorted[sorted.size / 2]
+    }
 
     /**
      * Computes RMS of [signal].  `internal` for unit testing.
