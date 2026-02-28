@@ -100,6 +100,8 @@ class InstrumentCalibrator(
      *                                 the hit detection phase (default: 3 000).
      * @param onBackgroundNoisePhase   Optional callback invoked at the very start of the background
      *                                 noise recording phase, before any audio is read.
+     * @param onHitPhaseStart          Optional callback invoked once the background noise phase has
+     *                                 finished and hit detection is about to begin.
      * @param onProgress               Optional callback (0–100) updated after each detected hit.
      * @param onHitDetected            Optional callback invoked after each hit, with the running hit count.
      * @param onComplete               Invoked on the calling thread when done.  Receives a
@@ -112,6 +114,7 @@ class InstrumentCalibrator(
         sensitivityFactor: Float = onsetDetector.onsetThresholdFactor,
         backgroundNoiseDurationMs: Int = 3_000,
         onBackgroundNoisePhase: (() -> Unit)? = null,
+        onHitPhaseStart: (() -> Unit)? = null,
         onProgress: ((pct: Int) -> Unit)? = null,
         onHitDetected: ((hitCount: Int) -> Unit)? = null,
         onComplete: (CalibrationResult?) -> Unit
@@ -167,6 +170,7 @@ class InstrumentCalibrator(
 
         // Hit detection phase: register the onset callback now that the detector's
         // baseline is calibrated to the actual background noise level.
+        onHitPhaseStart?.invoke()
         onsetDetector.onOnset = {
             val size = minOf(512, snippetBuffer.size)
             val start = (snippetWritePos - size).coerceAtLeast(0)

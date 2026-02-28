@@ -141,6 +141,14 @@ class CalibrationActivity : AppCompatActivity() {
                 onProgress = { pct ->
                     runOnUiThread { binding.progressCalibration.progress = pct }
                 },
+                onHitPhaseStart = {
+                    runOnUiThread {
+                        binding.textCalibrationStatus.text = getString(
+                            R.string.calibration_hit_phase_start,
+                            InstrumentCalibrator.CALIBRATION_HITS
+                        )
+                    }
+                },
                 onHitDetected = { count ->
                     runOnUiThread {
                         binding.textCalibrationStatus.text = getString(
