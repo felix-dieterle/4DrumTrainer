@@ -91,6 +91,7 @@
     <string name="calibration_current">✓ Calibrated: %1$d Hz – %2$d Hz</string>
     <string name="calibration_default">Default: %1$d Hz – %2$d Hz (not calibrated)</string>
     <string name="calibration_background_noise">🔇 Please be quiet — recording background noise…</string>
+    <string name="calibration_hit_phase_start">🥁 Now hit the instrument %1$d times!</string>
     <string name="calibration_hit_progress">🎙 Hit %1$d / %2$d — keep going!</string>
     <string name="calibration_start_recording">▶ Record (3 s noise + 5 hits)</string>
     <string name="calibration_reset">Reset to Default</string>
