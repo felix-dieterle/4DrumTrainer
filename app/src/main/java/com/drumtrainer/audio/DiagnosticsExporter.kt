@@ -1,6 +1,7 @@
 package com.drumtrainer.audio
 
 import com.drumtrainer.model.DrumPart
+import java.util.Locale
 
 /**
  * Builds a plain-text CSV diagnostic report covering the frequency-band
@@ -79,8 +80,8 @@ object DiagnosticsExporter {
                 defHigh.toString(),
                 cal?.first?.toString()  ?: "",
                 cal?.second?.toString() ?: "",
-                stat?.first?.let  { "%.1f".format(it) } ?: "",
-                stat?.second?.let { "%.1f".format(it) } ?: "",
+                stat?.first?.let  { String.format(Locale.ROOT, "%.1f", it) } ?: "",
+                stat?.second?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "",
                 effLow.toString(),
                 effHigh.toString(),
                 csvCell(overlaps)

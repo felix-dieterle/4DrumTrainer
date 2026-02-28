@@ -36,7 +36,7 @@ import kotlin.math.sqrt
  */
 class OnsetDetector(
     private val sampleRateHz: Int = 44_100,
-    private val frameSize: Int = 512,
+    val frameSize: Int = 512,
     onsetThresholdFactor: Float = 3.0f,
     private val spectralFluxFactor: Float = 1.5f,
     private val minOnsetGapMs: Long = 80L,

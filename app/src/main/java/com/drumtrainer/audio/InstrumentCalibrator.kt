@@ -148,12 +148,21 @@ class InstrumentCalibrator(
             val read = audioRecord.read(rawBuffer, 0, rawBuffer.size)
             if (read <= 0) continue
             for (i in 0 until read) {
-                val f = rawBuffer[i] / 32768f
-                floatBuffer[i] = f
-                snippetBuffer[snippetWritePos % snippetBuffer.size] = f
-                snippetWritePos++
+                floatBuffer[i] = rawBuffer[i] / 32768f
             }
-            onsetDetector.feed(floatBuffer.copyOf(read))
+            // Process one detector frame at a time so that when onOnset fires,
+            // the circular buffer contains exactly the onset frame – not samples
+            // from a later frame that were written before feed() was called.
+            val frameSize = onsetDetector.frameSize
+            var pos = 0
+            while (pos + frameSize <= read) {
+                for (i in 0 until frameSize) {
+                    snippetBuffer[snippetWritePos % snippetBuffer.size] = floatBuffer[pos + i]
+                    snippetWritePos++
+                }
+                onsetDetector.feed(floatBuffer.copyOfRange(pos, pos + frameSize))
+                pos += frameSize
+            }
             samplesRead += read
         }
 
