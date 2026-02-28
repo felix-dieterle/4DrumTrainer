@@ -20,6 +20,23 @@ import kotlin.math.sqrt
  * whose frequency ranges are adjacent (e.g. snare vs. hi-tom, or bass drum vs.
  * floor tom).
  *
+ * ### Drum vs. cymbal discrimination
+ *
+ * Unlike classical instruments — which have stable harmonic spectra that can be
+ * separated by their fundamental frequency — drums and cymbals produce only short
+ * transient bursts.  Cymbals (especially Crash and Ride) have extremely broad,
+ * inharmonic spectra that overlap several drum frequency bands.  Simple
+ * band-energy comparison can therefore mis-classify a drum hit as a cymbal (or
+ * vice-versa) when the wider band accumulates more total energy.
+ *
+ * To address this, the classifier first determines the *drum family* (cymbal vs.
+ * membrane drum) by computing the **high-frequency energy ratio**: the fraction of
+ * spectral energy above [CYMBAL_HF_THRESHOLD_HZ].  Cymbals concentrate the
+ * majority of their energy above this boundary; drums do not.  When the
+ * frequency-band winner belongs to the wrong family, the classifier instead
+ * returns the best-ranked candidate from the family that matches the HF ratio
+ * prediction.
+ *
  * @param sampleRateHz  Recording sample rate (default: 44 100 Hz).
  * @param calibration   Optional map of per-[DrumPart] (lowHz, highHz) overrides
  *                      produced by [com.drumtrainer.audio.InstrumentCalibrator].
@@ -28,6 +45,24 @@ class DrumHitClassifier(
     private val sampleRateHz: Int = 44_100,
     private val calibration: Map<DrumPart, Pair<Int, Int>> = emptyMap()
 ) {
+
+    companion object {
+        /**
+         * Frequency boundary (Hz) above which cymbals concentrate most of their
+         * spectral energy.  Metallic cymbals (hi-hat, ride, crash) have strong
+         * inharmonic partials in this region; membrane drums (bass drum, snare,
+         * toms) do not.
+         */
+        const val CYMBAL_HF_THRESHOLD_HZ = 3_000
+
+        /**
+         * Minimum ratio of high-frequency energy (above [CYMBAL_HF_THRESHOLD_HZ])
+         * to total spectral energy at which a hit is treated as a cymbal rather than
+         * a drum.  A value of 0.4 means at least 40 % of the spectral energy must
+         * lie above [CYMBAL_HF_THRESHOLD_HZ] for the hit to be considered a cymbal.
+         */
+        const val CYMBAL_HF_RATIO_THRESHOLD = 0.4f
+    }
 
     /**
      * Classifies [snippet] (normalised float PCM) and returns the most likely
@@ -45,6 +80,17 @@ class DrumHitClassifier(
      * uncalibrated kits whose default frequency ranges overlap heavily.
      * Set [confidenceRatio] > 1.0 (e.g. 1.5) when the classifier is supplied
      * with a complete, non-overlapping calibration.
+     *
+     * After the confidence check, a **drum-family filter** is applied: the
+     * high-frequency energy ratio of the snippet (fraction of energy above
+     * [CYMBAL_HF_THRESHOLD_HZ]) is compared against [CYMBAL_HF_RATIO_THRESHOLD].
+     * If the frequency-band winner belongs to the wrong family (e.g. a broad
+     * Crash band accumulates more energy than a Snare band for what was clearly
+     * a low-frequency drum hit), the highest-ranked candidate from the correct
+     * family is returned instead.  This directly addresses the primary challenge
+     * of drum/cymbal distinction: broad-band cymbals can outrank drums on total
+     * band energy even when the transient's spectrum is dominated by low
+     * frequencies — a situation that does not arise with classical instruments.
      *
      * @param snippet          Short PCM window (e.g. 512–2048 samples) centred on an onset.
      * @param minEnergy        Minimum RMS energy to consider a valid hit (default: 0.01).
@@ -77,7 +123,41 @@ class DrumHitClassifier(
             return null
         }
 
+        // --- Drum-family filter -----------------------------------------------
+        // Cymbals concentrate most of their energy above CYMBAL_HF_THRESHOLD_HZ;
+        // drums do not.  When the frequency-band winner belongs to the wrong family
+        // (e.g. a broad Crash band wins for what is clearly a low-frequency drum
+        // hit), return the top-ranked candidate from the correct family instead.
+        val likelyCymbal = isLikelyCymbal(windowed)
+        if (best.key.isCymbal != likelyCymbal) {
+            return sorted.firstOrNull { it.key.isCymbal == likelyCymbal }?.key
+        }
+
         return best.key
+    }
+
+    /**
+     * Returns `true` when the high-frequency energy ratio of [windowed] is at or
+     * above [CYMBAL_HF_RATIO_THRESHOLD], indicating the hit most likely came from
+     * a cymbal rather than a membrane drum.
+     *
+     * The ratio is computed as:
+     *   bandRms(windowed, CYMBAL_HF_THRESHOLD_HZ, Nyquist) / bandRms(windowed, 0, Nyquist)
+     *
+     * This exploits the key physical difference between drums and cymbals that
+     * makes their discrimination harder than for classical instruments: unlike
+     * strings or woodwinds (which have well-separated harmonic fundamentals),
+     * cymbals produce broad inharmonic spectra with most energy above ~3 kHz,
+     * while drums concentrate their energy below ~1 kHz.  Frequency-band energy
+     * alone is not sufficient because wide-range cymbal bands (e.g. Crash: 200–
+     * 10 000 Hz) can accumulate more total energy than a narrow drum band even
+     * when the actual strike was on a drum.
+     */
+    private fun isLikelyCymbal(windowed: FloatArray): Boolean {
+        val totalEnergy = bandRms(windowed, 0, sampleRateHz / 2)
+        if (totalEnergy == 0f) return false
+        val hfEnergy = bandRms(windowed, CYMBAL_HF_THRESHOLD_HZ, sampleRateHz / 2)
+        return hfEnergy / totalEnergy >= CYMBAL_HF_RATIO_THRESHOLD
     }
 
     /**
