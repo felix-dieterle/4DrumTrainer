@@ -85,11 +85,15 @@ class CalibrationActivity : AppCompatActivity() {
     }
 
     private fun updateCalibrationDisplay() {
-        val cal = prefs.getCalibration(selectedPart)
-        binding.textCalibrationStatus.text = if (cal != null) {
-            getString(R.string.calibration_current, cal.first, cal.second)
-        } else {
-            getString(
+        val cal   = prefs.getCalibration(selectedPart)
+        val stats = prefs.getCalibrationStats(selectedPart)
+        binding.textCalibrationStatus.text = when {
+            cal != null && stats != null -> getString(
+                R.string.calibration_current_with_stats,
+                cal.first, cal.second, stats.first, stats.second
+            )
+            cal != null -> getString(R.string.calibration_current, cal.first, cal.second)
+            else -> getString(
                 R.string.calibration_default,
                 selectedPart.freqRangeLowHz,
                 selectedPart.freqRangeHighHz
@@ -168,19 +172,27 @@ class CalibrationActivity : AppCompatActivity() {
                     if (result != null) {
                         prefs.setCalibration(selectedPart, result.lowHz, result.highHz)
                         prefs.setCalibrationStats(selectedPart, result.meanHz, result.stddevHz)
+                        binding.textCalibrationStatus.text = getString(
+                            R.string.calibration_result_detail,
+                            result.lowHz,
+                            result.highHz,
+                            result.meanHz,
+                            result.stddevHz,
+                            result.peakFrequencies.joinToString(", ")
+                        )
                         Toast.makeText(
                             this,
                             getString(R.string.calibration_saved),
                             Toast.LENGTH_SHORT
                         ).show()
                     } else {
+                        updateCalibrationDisplay()
                         Toast.makeText(
                             this,
                             getString(R.string.calibration_no_hits),
                             Toast.LENGTH_LONG
                         ).show()
                     }
-                    updateCalibrationDisplay()
                 }
             }
         }.start()
