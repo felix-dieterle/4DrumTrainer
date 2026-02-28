@@ -89,6 +89,8 @@
     <string name="calibration_instruction">Press Record to start. First, 3 seconds of background noise are recorded — please be quiet. Then hit the selected instrument 5 times to calibrate frequency detection for your drum kit.</string>
     <string name="calibration_select_instrument">Select Instrument</string>
     <string name="calibration_current">✓ Calibrated: %1$d Hz – %2$d Hz</string>
+    <string name="calibration_current_with_stats">✓ Calibrated: %1$d–%2$d Hz (mean %3$.1f Hz, σ %4$.1f Hz)</string>
+    <string name="calibration_result_detail">✓ Calibrated: %1$d–%2$d Hz\nMean: %3$.1f Hz, Std dev: %4$.1f Hz\nPeaks: %5$s Hz</string>
     <string name="calibration_default">Default: %1$d Hz – %2$d Hz (not calibrated)</string>
     <string name="calibration_background_noise">🔇 Please be quiet — recording background noise…</string>
     <string name="calibration_hit_phase_start">🥁 Now hit the instrument %1$d times!</string>

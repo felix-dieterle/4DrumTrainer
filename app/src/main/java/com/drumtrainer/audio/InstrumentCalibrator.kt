@@ -121,6 +121,10 @@ class InstrumentCalibrator(
     ) {
         onsetDetector.onsetThresholdFactor = sensitivityFactor
         onsetDetector.reset()
+        // Clear any leftover callback from a previous calibration session so that
+        // hits detected during the background-noise phase do not fire the old
+        // onHitDetected with a stale (already-full) peakFrequencies count.
+        onsetDetector.onOnset = null
 
         val minBufferSize = AudioRecord.getMinBufferSize(
             sampleRateHz,

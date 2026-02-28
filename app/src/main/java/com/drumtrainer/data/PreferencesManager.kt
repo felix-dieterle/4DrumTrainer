@@ -67,6 +67,7 @@ class PreferencesManager(context: Context) {
         private fun calKeyHigh(part: DrumPart)   = "cal_${part.name}_high"
         private fun calKeyMean(part: DrumPart)   = "cal_${part.name}_mean"
         private fun calKeyStddev(part: DrumPart) = "cal_${part.name}_stddev"
+        private fun calKeyPeaks(part: DrumPart)  = "cal_${part.name}_peaks"
     }
 
     // ── Instrument calibration ────────────────────────────────────────────────
@@ -102,6 +103,7 @@ class PreferencesManager(context: Context) {
             .remove(calKeyHigh(part))
             .remove(calKeyMean(part))
             .remove(calKeyStddev(part))
+            .remove(calKeyPeaks(part))
             .apply()
     }
 
@@ -150,5 +152,43 @@ class PreferencesManager(context: Context) {
     fun getAllCalibrationStats(): Map<DrumPart, Pair<Double, Double>> =
         DrumPart.values().mapNotNull { part ->
             getCalibrationStats(part)?.let { part to it }
+        }.toMap()
+
+    // ── Raw peak frequencies ──────────────────────────────────────────────────
+
+    /**
+     * Persists the raw per-hit peak frequencies recorded during calibration of [part].
+     * Stored as a comma-separated string so the full measurement set is available
+     * for export and diagnosis without re-recording.
+     *
+     * @param part             The drum instrument that was calibrated.
+     * @param peakFrequencies  Ordered list of peak-frequency measurements (one per hit).
+     */
+    fun setPeakFrequencies(part: DrumPart, peakFrequencies: List<Int>) {
+        prefs.edit()
+            .putString(calKeyPeaks(part), peakFrequencies.joinToString(","))
+            .apply()
+    }
+
+    /**
+     * Returns the raw peak frequencies saved during calibration of [part], or `null`
+     * if the instrument has never been calibrated.
+     *
+     * Returns `null` (not an empty list) if the stored value is absent or unparseable,
+     * because calibration always records at least one hit — an empty result implies the
+     * key was never written.
+     */
+    fun getPeakFrequencies(part: DrumPart): List<Int>? {
+        val raw = prefs.getString(calKeyPeaks(part), null) ?: return null
+        return raw.split(",").mapNotNull { it.trim().toIntOrNull() }.takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * Returns a map of all [DrumPart]s that have saved raw peak frequencies.
+     * Parts without saved peaks are absent from the map.
+     */
+    fun getAllPeakFrequencies(): Map<DrumPart, List<Int>> =
+        DrumPart.values().mapNotNull { part ->
+            getPeakFrequencies(part)?.let { part to it }
         }.toMap()
 }
