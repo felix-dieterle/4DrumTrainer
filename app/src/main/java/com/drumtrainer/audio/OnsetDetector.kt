@@ -37,11 +37,18 @@ import kotlin.math.sqrt
 class OnsetDetector(
     private val sampleRateHz: Int = 44_100,
     private val frameSize: Int = 512,
-    private val onsetThresholdFactor: Float = 3.0f,
+    onsetThresholdFactor: Float = 3.0f,
     private val spectralFluxFactor: Float = 1.5f,
     private val minOnsetGapMs: Long = 80L,
     private val backgroundFrames: Int = 20
 ) {
+    /**
+     * Ratio above the rolling RMS background required for the energy criterion.
+     * Increase this value to reduce false positives from ambient noise.
+     * Decrease it if real hits are not being detected.
+     * Default: 3.0.
+     */
+    var onsetThresholdFactor: Float = onsetThresholdFactor
     private val highPass = HighPassFilter()
     private val rmsHistory = ArrayDeque<Float>(backgroundFrames)
 

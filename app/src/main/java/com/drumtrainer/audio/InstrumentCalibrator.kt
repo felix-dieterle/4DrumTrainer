@@ -83,21 +83,27 @@ class InstrumentCalibrator(
      * Records audio until [requiredHits] onsets are detected (or [maxDurationMs]
      * elapses) and analyses the snippets to estimate the dominant frequency band.
      *
-     * @param requiredHits   Number of hits to collect before finishing (default: [CALIBRATION_HITS]).
-     * @param maxDurationMs  Safety timeout in milliseconds (default: 10 000).
-     * @param onProgress     Optional callback (0–100) updated after each detected hit.
-     * @param onHitDetected  Optional callback invoked after each hit, with the running hit count.
-     * @param onComplete     Invoked on the calling thread when done.  Receives a
-     *                       [CalibrationResult] with the estimated band, mean, stddev and
-     *                       raw peak frequencies, or `null` if no hits were detected.
+     * @param requiredHits    Number of hits to collect before finishing (default: [CALIBRATION_HITS]).
+     * @param maxDurationMs   Safety timeout in milliseconds (default: 10 000).
+     * @param sensitivityFactor Onset threshold: ratio above rolling RMS required to count a hit.
+     *                        Lower values → more sensitive (picks up quiet hits but also ambient noise).
+     *                        Higher values → less sensitive (ignores noise but may miss soft hits).
+     *                        Default: the detector's current [OnsetDetector.onsetThresholdFactor] (3.0).
+     * @param onProgress      Optional callback (0–100) updated after each detected hit.
+     * @param onHitDetected   Optional callback invoked after each hit, with the running hit count.
+     * @param onComplete      Invoked on the calling thread when done.  Receives a
+     *                        [CalibrationResult] with the estimated band, mean, stddev and
+     *                        raw peak frequencies, or `null` if no hits were detected.
      */
     fun record(
         requiredHits: Int = CALIBRATION_HITS,
         maxDurationMs: Int = 10_000,
+        sensitivityFactor: Float = onsetDetector.onsetThresholdFactor,
         onProgress: ((pct: Int) -> Unit)? = null,
         onHitDetected: ((hitCount: Int) -> Unit)? = null,
         onComplete: (CalibrationResult?) -> Unit
     ) {
+        onsetDetector.onsetThresholdFactor = sensitivityFactor
         onsetDetector.reset()
 
         val minBufferSize = AudioRecord.getMinBufferSize(
