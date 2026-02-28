@@ -83,22 +83,35 @@ class InstrumentCalibrator(
      * Records audio until [requiredHits] onsets are detected (or [maxDurationMs]
      * elapses) and analyses the snippets to estimate the dominant frequency band.
      *
-     * @param requiredHits    Number of hits to collect before finishing (default: [CALIBRATION_HITS]).
-     * @param maxDurationMs   Safety timeout in milliseconds (default: 10 000).
-     * @param sensitivityFactor Onset threshold: ratio above rolling RMS required to count a hit.
-     *                        Lower values → more sensitive (picks up quiet hits but also ambient noise).
-     *                        Higher values → less sensitive (ignores noise but may miss soft hits).
-     *                        Default: the detector's current [OnsetDetector.onsetThresholdFactor] (3.0).
-     * @param onProgress      Optional callback (0–100) updated after each detected hit.
-     * @param onHitDetected   Optional callback invoked after each hit, with the running hit count.
-     * @param onComplete      Invoked on the calling thread when done.  Receives a
-     *                        [CalibrationResult] with the estimated band, mean, stddev and
-     *                        raw peak frequencies, or `null` if no hits were detected.
+     * The recording session begins with a [backgroundNoiseDurationMs]-long background
+     * noise phase during which audio is fed to the onset detector to warm up its
+     * rolling RMS baseline.  Onsets fired during this phase are ignored, so that the
+     * threshold used for actual hit detection is calibrated to the real ambient noise
+     * level rather than to silence.  [onBackgroundNoisePhase] is invoked at the start
+     * of this phase so the caller can update its UI accordingly.
+     *
+     * @param requiredHits             Number of hits to collect before finishing (default: [CALIBRATION_HITS]).
+     * @param maxDurationMs            Safety timeout in milliseconds (default: 10 000).
+     * @param sensitivityFactor        Onset threshold: ratio above rolling RMS required to count a hit.
+     *                                 Lower values → more sensitive (picks up quiet hits but also ambient noise).
+     *                                 Higher values → less sensitive (ignores noise but may miss soft hits).
+     *                                 Default: the detector's current [OnsetDetector.onsetThresholdFactor] (3.0).
+     * @param backgroundNoiseDurationMs Duration in milliseconds to record background noise before
+     *                                 the hit detection phase (default: 3 000).
+     * @param onBackgroundNoisePhase   Optional callback invoked at the very start of the background
+     *                                 noise recording phase, before any audio is read.
+     * @param onProgress               Optional callback (0–100) updated after each detected hit.
+     * @param onHitDetected            Optional callback invoked after each hit, with the running hit count.
+     * @param onComplete               Invoked on the calling thread when done.  Receives a
+     *                                 [CalibrationResult] with the estimated band, mean, stddev and
+     *                                 raw peak frequencies, or `null` if no hits were detected.
      */
     fun record(
         requiredHits: Int = CALIBRATION_HITS,
         maxDurationMs: Int = 10_000,
         sensitivityFactor: Float = onsetDetector.onsetThresholdFactor,
+        backgroundNoiseDurationMs: Int = 3_000,
+        onBackgroundNoisePhase: (() -> Unit)? = null,
         onProgress: ((pct: Int) -> Unit)? = null,
         onHitDetected: ((hitCount: Int) -> Unit)? = null,
         onComplete: (CalibrationResult?) -> Unit
@@ -124,6 +137,36 @@ class InstrumentCalibrator(
         var snippetWritePos = 0
         val peakFrequencies = mutableListOf<Int>()
 
+        audioRecord.startRecording()
+
+        val rawBuffer   = ShortArray(bufferSize / 2)
+        val floatBuffer = FloatArray(bufferSize / 2)
+
+        // Background noise phase: feed audio through the onset detector so that its
+        // rolling RMS history reflects actual ambient noise before hit detection begins.
+        // No onOnset callback is registered yet, so no false hits are recorded.
+        onBackgroundNoisePhase?.invoke()
+        val bgSamples = sampleRateHz.toLong() * backgroundNoiseDurationMs / 1000
+        var bgRead = 0L
+        while (bgRead < bgSamples) {
+            val read = audioRecord.read(rawBuffer, 0, rawBuffer.size)
+            if (read <= 0) continue
+            for (i in 0 until read) floatBuffer[i] = rawBuffer[i] / 32768f
+            val frameSize = onsetDetector.frameSize
+            var pos = 0
+            while (pos + frameSize <= read) {
+                for (i in 0 until frameSize) {
+                    snippetBuffer[snippetWritePos % snippetBuffer.size] = floatBuffer[pos + i]
+                    snippetWritePos++
+                }
+                onsetDetector.feed(floatBuffer.copyOfRange(pos, pos + frameSize))
+                pos += frameSize
+            }
+            bgRead += read
+        }
+
+        // Hit detection phase: register the onset callback now that the detector's
+        // baseline is calibrated to the actual background noise level.
         onsetDetector.onOnset = {
             val size = minOf(512, snippetBuffer.size)
             val start = (snippetWritePos - size).coerceAtLeast(0)
@@ -137,10 +180,6 @@ class InstrumentCalibrator(
             }
         }
 
-        audioRecord.startRecording()
-
-        val rawBuffer    = ShortArray(bufferSize / 2)
-        val floatBuffer  = FloatArray(bufferSize / 2)
         val totalSamples = sampleRateHz.toLong() * maxDurationMs / 1000
         var samplesRead  = 0L
 
