@@ -5,33 +5,42 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
- * Records a short microphone sample while the user strikes a single drum
- * instrument, then estimates the dominant frequency band for that instrument.
+ * Records microphone audio while the user strikes a single drum instrument
+ * [CALIBRATION_HITS] times, then estimates the dominant frequency band for
+ * that instrument.
  *
  * Improvements over a naïve peak-frequency approach:
  * - A **Hann window** is applied to each snippet before the DFT to suppress
  *   spectral leakage, giving a more accurate dominant-frequency estimate.
- * - When enough onset samples have been collected (≥ 4 hits), the calibrated
- *   frequency band is derived from the **interquartile range** (Q1–Q3) of
- *   detected peak frequencies rather than a fixed ratio of the median.  This
- *   produces tighter, instrument-specific bands that improve classification
- *   accuracy, especially for instruments with overlapping default ranges (e.g.
- *   snare vs. hi-tom).
+ * - Recording stops automatically once [CALIBRATION_HITS] distinct onsets
+ *   have been captured (up to [maxDurationMs] as a safety timeout).  Using a
+ *   fixed hit count rather than a fixed time ensures a consistent number of
+ *   samples regardless of how quickly the user strikes the instrument.
+ * - The calibrated band is computed as **mean ± 2 × stddev** of the collected
+ *   peak frequencies, with a minimum span of 20 % of the mean for robustness
+ *   when the hit cluster is very tight.  This produces significantly tighter,
+ *   instrument-specific bands than the previous IQR-with-large-expansion
+ *   approach and reduces misclassification for instruments with adjacent
+ *   default ranges (e.g. snare vs. hi-tom, or bass drum vs. floor tom).
  *
  * Typical usage:
  * ```
  * val calibrator = InstrumentCalibrator()
  * Thread {
- *     calibrator.record(durationMs = 3000, onProgress = { pct -> ... }) { lowHz, highHz ->
+ *     calibrator.record(
+ *         onProgress    = { pct -> … },
+ *         onHitDetected = { n   -> … }
+ *     ) { lowHz, highHz ->
  *         // store calibrated range for DrumPart.SNARE
  *     }
  * }.start()
  * ```
  *
  * **Must be called from a background thread** – the [record] function blocks
- * for [durationMs] milliseconds while the microphone is open.
+ * until the required hits are collected or the timeout expires.
  *
  * @param sampleRateHz  Recording sample rate in Hz (default: 44 100).
  * @param onsetDetector Onset detector instance (injectable for testing).
@@ -40,19 +49,36 @@ class InstrumentCalibrator(
     private val sampleRateHz: Int = 44_100,
     private val onsetDetector: OnsetDetector = OnsetDetector(sampleRateHz)
 ) {
+
+    companion object {
+        /** Number of hits required for a reliable per-instrument calibration. */
+        const val CALIBRATION_HITS = 5
+
+        /**
+         * Minimum band span expressed as a fraction of the mean peak frequency.
+         * Ensures that even a perfectly tight hit cluster produces a band wide
+         * enough for the DFT bin resolution to yield meaningful results.
+         */
+        private const val MIN_SPAN_FRACTION = 0.20
+    }
+
     /**
-     * Records [durationMs] milliseconds of audio and analyses onset snippets
-     * to estimate the dominant frequency band.
+     * Records audio until [requiredHits] onsets are detected (or [maxDurationMs]
+     * elapses) and analyses the snippets to estimate the dominant frequency band.
      *
-     * @param durationMs  How long to record in milliseconds (default: 3 000).
-     * @param onProgress  Optional callback (0–100) invoked as recording progresses.
-     * @param onComplete  Invoked on the calling thread when done.  Receives the
-     *                    estimated (lowHz, highHz), or (null, null) if no hits
-     *                    were detected during the recording window.
+     * @param requiredHits   Number of hits to collect before finishing (default: [CALIBRATION_HITS]).
+     * @param maxDurationMs  Safety timeout in milliseconds (default: 10 000).
+     * @param onProgress     Optional callback (0–100) updated after each detected hit.
+     * @param onHitDetected  Optional callback invoked after each hit, with the running hit count.
+     * @param onComplete     Invoked on the calling thread when done.  Receives the
+     *                       estimated (lowHz, highHz), or (null, null) if no hits
+     *                       were detected during the recording window.
      */
     fun record(
-        durationMs: Int = 3_000,
+        requiredHits: Int = CALIBRATION_HITS,
+        maxDurationMs: Int = 10_000,
         onProgress: ((pct: Int) -> Unit)? = null,
+        onHitDetected: ((hitCount: Int) -> Unit)? = null,
         onComplete: (lowHz: Int?, highHz: Int?) -> Unit
     ) {
         onsetDetector.reset()
@@ -80,17 +106,22 @@ class InstrumentCalibrator(
             val start = (snippetWritePos - size).coerceAtLeast(0)
             val snippet = FloatArray(size) { snippetBuffer[(start + it) % snippetBuffer.size] }
             val peak = findPeakFrequency(snippet)
-            if (peak > 0) peakFrequencies.add(peak)
+            if (peak > 0) {
+                peakFrequencies.add(peak)
+                val count = peakFrequencies.size
+                onHitDetected?.invoke(count)
+                onProgress?.invoke((count * 100 / requiredHits).coerceIn(0, 100))
+            }
         }
 
         audioRecord.startRecording()
 
-        val rawBuffer   = ShortArray(bufferSize / 2)
-        val floatBuffer = FloatArray(bufferSize / 2)
-        val totalSamples = sampleRateHz.toLong() * durationMs / 1000
+        val rawBuffer    = ShortArray(bufferSize / 2)
+        val floatBuffer  = FloatArray(bufferSize / 2)
+        val totalSamples = sampleRateHz.toLong() * maxDurationMs / 1000
         var samplesRead  = 0L
 
-        while (samplesRead < totalSamples) {
+        while (samplesRead < totalSamples && peakFrequencies.size < requiredHits) {
             val read = audioRecord.read(rawBuffer, 0, rawBuffer.size)
             if (read <= 0) continue
             for (i in 0 until read) {
@@ -101,7 +132,6 @@ class InstrumentCalibrator(
             }
             onsetDetector.feed(floatBuffer.copyOf(read))
             samplesRead += read
-            onProgress?.invoke(((samplesRead * 100) / totalSamples).toInt().coerceIn(0, 100))
         }
 
         audioRecord.stop()
@@ -112,23 +142,31 @@ class InstrumentCalibrator(
             return
         }
 
-        val sorted = peakFrequencies.sorted()
-        val low: Int
-        val high: Int
-        if (sorted.size >= 4) {
-            // IQR-based band: use Q1 and Q3 of collected peak frequencies, then
-            // expand outward by 50 % in each direction to cover harmonic spread.
-            val q1 = sorted[sorted.size / 4]
-            val q3 = sorted[(3 * sorted.size) / 4]
-            low  = (q1 / 2).coerceAtLeast(20)
-            high = (q3 * 2).coerceAtMost(20_000)
-        } else {
-            // Fall back to median-based estimation when few hits were detected.
-            val medianPeak = sorted[sorted.size / 2]
-            low  = (medianPeak / 2).coerceAtLeast(20)
-            high = (medianPeak * 3).coerceAtMost(20_000)
-        }
+        val (low, high) = computeBand(peakFrequencies)
         onComplete(low, high)
+    }
+
+    /**
+     * Derives a frequency band from a list of peak-frequency measurements.
+     *
+     * Uses **mean ± 2 × stddev** with a minimum span of 20 % of the mean so
+     * that very tightly-clustered measurements still produce a usable band.
+     * This is significantly tighter than the previous IQR approach (which
+     * expanded Q1 and Q3 by a factor of 2), reducing band overlap between
+     * adjacent instruments and therefore improving classification accuracy.
+     *
+     * `internal` so it can be unit-tested directly.
+     */
+    internal fun computeBand(peakFrequencies: List<Int>): Pair<Int, Int> {
+        val mean = peakFrequencies.average()
+        val variance = peakFrequencies.fold(0.0) { acc, f -> acc + (f - mean) * (f - mean) } /
+            peakFrequencies.size
+        val stddev = sqrt(variance)
+        // Band = mean ± 2 standard deviations, minimum MIN_SPAN_FRACTION of mean for robustness.
+        val span = maxOf(2.0 * stddev, mean * MIN_SPAN_FRACTION)
+        val low  = (mean - span).toInt().coerceAtLeast(20)
+        val high = (mean + span).toInt().coerceAtMost(20_000)
+        return low to high
     }
 
     /**

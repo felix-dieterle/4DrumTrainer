@@ -262,15 +262,32 @@ class LessonActivity : AppCompatActivity() {
     }
 
     /**
-     * Records 3 seconds of audio for [part] and saves the calibration to
-     * [PreferencesManager].  The [AudioProcessor] is rebuilt afterwards so
-     * the new calibration takes effect in the session.
+     * Records audio for [part] (up to [InstrumentCalibrator.CALIBRATION_HITS] hits
+     * or a safety timeout) and saves the calibration to [PreferencesManager].
+     * The [AudioProcessor] is rebuilt afterwards so the new calibration takes
+     * effect in the session.
      */
     private fun startWizardCalibration(part: DrumPart, onDone: () -> Unit) {
-        binding.textStatus.text = getString(R.string.adaptation_calibrating, part.displayName)
+        binding.textStatus.text = getString(
+            R.string.adaptation_calibrating,
+            part.displayName,
+            0,
+            InstrumentCalibrator.CALIBRATION_HITS
+        )
 
         Thread {
-            InstrumentCalibrator().record(durationMs = 3_000) { lowHz, highHz ->
+            InstrumentCalibrator().record(
+                onHitDetected = { count ->
+                    runOnUiThread {
+                        binding.textStatus.text = getString(
+                            R.string.adaptation_calibrating,
+                            part.displayName,
+                            count,
+                            InstrumentCalibrator.CALIBRATION_HITS
+                        )
+                    }
+                }
+            ) { lowHz, highHz ->
                 runOnUiThread {
                     if (lowHz != null && highHz != null) {
                         prefs.setCalibration(part, lowHz, highHz)

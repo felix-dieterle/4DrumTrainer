@@ -16,12 +16,14 @@ import com.drumtrainer.databinding.ActivityCalibrationBinding
 import com.drumtrainer.model.DrumPart
 
 /**
- * Guides the user through calibrating each drum instrument by recording a
- * short audio sample and analysing the dominant frequency band.
+ * Guides the user through calibrating each drum instrument by recording
+ * [com.drumtrainer.audio.InstrumentCalibrator.CALIBRATION_HITS] hits and
+ * analysing the dominant frequency band.
  *
  * For each [DrumPart] the user can:
  *  1. Select the instrument from the spinner.
- *  2. Press **Record** and hit the instrument repeatedly for 3 seconds.
+ *  2. Press **Record** and hit the instrument the required number of times;
+ *     recording stops automatically once all hits are captured.
  *  3. The detected frequency range is automatically saved to [PreferencesManager].
  *  4. Press **Reset to Default** to remove the saved calibration.
  *
@@ -118,13 +120,25 @@ class CalibrationActivity : AppCompatActivity() {
         binding.buttonReset.isEnabled  = false
         binding.progressCalibration.visibility = View.VISIBLE
         binding.progressCalibration.progress   = 0
-        binding.textCalibrationStatus.text = getString(R.string.calibration_recording)
+        binding.textCalibrationStatus.text = getString(
+            R.string.calibration_hit_progress,
+            0,
+            InstrumentCalibrator.CALIBRATION_HITS
+        )
 
         Thread {
             calibrator.record(
-                durationMs = 3_000,
                 onProgress = { pct ->
                     runOnUiThread { binding.progressCalibration.progress = pct }
+                },
+                onHitDetected = { count ->
+                    runOnUiThread {
+                        binding.textCalibrationStatus.text = getString(
+                            R.string.calibration_hit_progress,
+                            count,
+                            InstrumentCalibrator.CALIBRATION_HITS
+                        )
+                    }
                 }
             ) { lowHz, highHz ->
                 runOnUiThread {

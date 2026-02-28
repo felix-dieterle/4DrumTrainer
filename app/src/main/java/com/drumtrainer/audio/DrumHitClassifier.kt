@@ -31,15 +31,31 @@ class DrumHitClassifier(
 
     /**
      * Classifies [snippet] (normalised float PCM) and returns the most likely
-     * [DrumPart], or `null` if the energy is too low to be a meaningful hit.
+     * [DrumPart], or `null` if the energy is too low to be a meaningful hit or
+     * if the classification is ambiguous.
      *
      * A Hann window is applied to [snippet] once before computing band energies
      * to suppress spectral leakage.
      *
-     * @param snippet   Short PCM window (e.g. 512–2048 samples) centred on an onset.
-     * @param minEnergy Minimum RMS energy to consider a valid hit (default: 0.01).
+     * When [confidenceRatio] > 1.0, the winner must have at least that many
+     * times the energy of the runner-up; otherwise the hit is considered
+     * ambiguous and `null` is returned.  This prevents mis-classification when
+     * two calibrated bands overlap.  With the default (1.0), every non-silent hit
+     * yields a classification, preserving backward-compatible behaviour for
+     * uncalibrated kits whose default frequency ranges overlap heavily.
+     * Set [confidenceRatio] > 1.0 (e.g. 1.5) when the classifier is supplied
+     * with a complete, non-overlapping calibration.
+     *
+     * @param snippet          Short PCM window (e.g. 512–2048 samples) centred on an onset.
+     * @param minEnergy        Minimum RMS energy to consider a valid hit (default: 0.01).
+     * @param confidenceRatio  Minimum ratio of best-band energy to runner-up energy
+     *                         required for a confident classification (default: 1.0 = disabled).
      */
-    fun classify(snippet: FloatArray, minEnergy: Float = 0.01f): DrumPart? {
+    fun classify(
+        snippet: FloatArray,
+        minEnergy: Float = 0.01f,
+        confidenceRatio: Float = 1.0f
+    ): DrumPart? {
         val rms = computeRms(snippet)
         if (rms < minEnergy) return null
 
@@ -51,7 +67,17 @@ class DrumHitClassifier(
             bandRms(windowed, low, high)
         }
 
-        return bandEnergies.maxByOrNull { it.value }?.key
+        val sorted = bandEnergies.entries.sortedByDescending { it.value }
+        val best   = sorted.firstOrNull() ?: return null
+        val second = sorted.getOrNull(1)
+
+        // Require the winner to be confidently ahead of the runner-up to avoid
+        // mis-classifying hits that fall in an overlapping region of two bands.
+        if (second != null && second.value > 0f && best.value / second.value < confidenceRatio) {
+            return null
+        }
+
+        return best.key
     }
 
     /**
