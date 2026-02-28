@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -71,6 +72,15 @@ class CalibrationActivity : AppCompatActivity() {
         binding.buttonReset.setOnClickListener  { resetCalibration() }
         binding.buttonExportDiagnostics.setOnClickListener { exportDiagnostics() }
 
+        binding.seekBarSensitivity.progress = prefs.micSensitivity
+        binding.seekBarSensitivity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) prefs.micSensitivity = progress
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
+
         updateCalibrationDisplay()
     }
 
@@ -131,6 +141,7 @@ class CalibrationActivity : AppCompatActivity() {
 
         Thread {
             calibrator.record(
+                sensitivityFactor = sensitivityToThreshold(binding.seekBarSensitivity.progress),
                 onProgress = { pct ->
                     runOnUiThread { binding.progressCalibration.progress = pct }
                 },
@@ -176,6 +187,16 @@ class CalibrationActivity : AppCompatActivity() {
         updateCalibrationDisplay()
         Toast.makeText(this, getString(R.string.calibration_reset), Toast.LENGTH_SHORT).show()
     }
+
+    /**
+     * Maps SeekBar progress (0–10) to an onset threshold factor passed to
+     * [InstrumentCalibrator.record].
+     *
+     * - progress 0  → factor 6.0 (Low sensitivity – ignores ambient noise, requires a loud hit)
+     * - progress 5  → factor 3.5 (Default – balanced)
+     * - progress 10 → factor 1.0 (High sensitivity – detects quiet hits, but also ambient noise)
+     */
+    private fun sensitivityToThreshold(progress: Int): Float = 6.0f - progress * 0.5f
 
     private fun exportDiagnostics() {
         val csv = DiagnosticsExporter.buildReport(

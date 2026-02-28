@@ -43,6 +43,17 @@ class PreferencesManager(context: Context) {
         get()      = prefs.getBoolean(KEY_CHEAT_MODE, false)
         set(value) = prefs.edit().putBoolean(KEY_CHEAT_MODE, value).apply()
 
+    /**
+     * Persisted SeekBar progress (0–10) for the microphone sensitivity slider
+     * shown in [com.drumtrainer.CalibrationActivity].  Default is 5 (medium).
+     * A lower value means less sensitive (higher onset threshold, fewer false positives
+     * from ambient noise); a higher value means more sensitive (lower threshold, detects
+     * softer hits).
+     */
+    var micSensitivity: Int
+        get()      = prefs.getInt(KEY_MIC_SENSITIVITY, 5)
+        set(value) = prefs.edit().putInt(KEY_MIC_SENSITIVITY, value).apply()
+
     companion object {
         private const val PREFS_FILE          = "drumtrainer_prefs"
         private const val KEY_ACTIVE_STUDENT  = "active_student_id"
@@ -50,6 +61,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_LESSON     = "last_lesson_id"
         private const val KEY_PROFILE_PIC     = "profile_picture_uri"
         private const val KEY_CHEAT_MODE      = "cheat_mode"
+        private const val KEY_MIC_SENSITIVITY = "mic_sensitivity"
 
         private fun calKeyLow(part: DrumPart)    = "cal_${part.name}_low"
         private fun calKeyHigh(part: DrumPart)   = "cal_${part.name}_high"
