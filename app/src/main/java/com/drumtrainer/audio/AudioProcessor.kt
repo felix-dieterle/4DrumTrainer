@@ -100,16 +100,31 @@ class AudioProcessor(
             val rawBuffer  = ShortArray(bufferSize / 2)
             val floatBuffer = FloatArray(bufferSize / 2)
             val ar = audioRecord ?: return@launch
+            val frameSize = onsetDetector.frameSize
             while (ar.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                 val read = ar.read(rawBuffer, 0, rawBuffer.size)
                 if (read <= 0) continue
                 for (i in 0 until read) {
-                    val f = rawBuffer[i] / 32768f
-                    floatBuffer[i] = f
-                    snippetBuffer[snippetWritePos % snippetBuffer.size] = f
-                    snippetWritePos++
+                    floatBuffer[i] = rawBuffer[i] / 32768f
                 }
-                onsetDetector.feed(floatBuffer.copyOf(read))
+                // Process one detector frame at a time so that when onOnset fires,
+                // the circular buffer contains exactly the onset frame – not samples
+                // from a later frame that were written before feed() was called.
+                var pos = 0
+                while (pos + frameSize <= read) {
+                    for (i in 0 until frameSize) {
+                        snippetBuffer[snippetWritePos % snippetBuffer.size] = floatBuffer[pos + i]
+                        snippetWritePos++
+                    }
+                    onsetDetector.feed(floatBuffer.copyOfRange(pos, pos + frameSize))
+                    pos += frameSize
+                }
+                // Feed any remaining samples (< frameSize) to keep onset timestamps accurate.
+                // OnsetDetector only processes complete frames, so no onset can fire here
+                // and the snippet buffer is never consulted for this sub-frame remainder.
+                if (pos < read) {
+                    onsetDetector.feed(floatBuffer.copyOfRange(pos, read))
+                }
             }
         }
     }
