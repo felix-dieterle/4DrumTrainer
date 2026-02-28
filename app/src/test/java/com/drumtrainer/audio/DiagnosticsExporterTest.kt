@@ -15,16 +15,23 @@ class DiagnosticsExporterTest {
         const val CAL_HIGH        = 4
         const val CAL_MEAN        = 5
         const val CAL_STDDEV      = 6
-        const val EFFECTIVE_LOW   = 7
-        const val EFFECTIVE_HIGH  = 8
-        const val OVERLAPS        = 9
+        const val CV_PCT          = 7
+        const val EFFECTIVE_LOW   = 8
+        const val EFFECTIVE_HIGH  = 9
+        const val BAND_WIDTH      = 10
+        const val OVERLAPS        = 11
+        const val PEAKS           = 12
     }
 
     @Test
     fun `buildReport contains header row`() {
         val csv = DiagnosticsExporter.buildReport(emptyMap(), emptyMap())
         assertTrue("Report should start with header", csv.startsWith("Instrument,"))
-        assertTrue("Header should contain Overlapping Instruments column", csv.contains("Overlapping Instruments"))
+        assertTrue("Header should contain Overlapping Instruments column",
+            csv.contains("Overlapping Instruments"))
+        assertTrue("Header should contain Band Width column", csv.contains("Band Width Hz"))
+        assertTrue("Header should contain CV column", csv.contains("CV (%)"))
+        assertTrue("Header should contain Peak Frequencies column", csv.contains("Peak Frequencies Hz"))
     }
 
     @Test
@@ -81,7 +88,7 @@ class DiagnosticsExporterTest {
     }
 
     @Test
-    fun `buildReport lists overlapping instruments`() {
+    fun `buildReport lists overlapping instruments with overlap size`() {
         // With default ranges, Bass Drum (50–200) overlaps with Floor Tom (60–200)
         // and TOM_MID (100–350).
         val csv = DiagnosticsExporter.buildReport(emptyMap(), emptyMap())
@@ -89,6 +96,11 @@ class DiagnosticsExporterTest {
         assertTrue(
             "Bass Drum row should mention Floor Tom as overlapping",
             bassRow.contains("Floor Tom")
+        )
+        // The overlap amount in Hz should appear in the row.
+        assertTrue(
+            "Bass Drum row should include overlap size in Hz",
+            bassRow.contains("Hz")
         )
     }
 
@@ -125,4 +137,46 @@ class DiagnosticsExporterTest {
     fun `bandsOverlap returns false for completely separate bands`() {
         assertFalse(DiagnosticsExporter.bandsOverlap(100, 200, 300 to 500))
     }
-}
+
+    @Test
+    fun `buildReport shows band width for effective range`() {
+        // Bass Drum default: 50–200 → band width = 150
+        val csv = DiagnosticsExporter.buildReport(emptyMap(), emptyMap())
+        val bassRow = csv.lines().first { it.startsWith("Bass Drum") }
+        val fields = bassRow.split(",")
+        assertEquals("Band width should be effHigh - effLow", "150", fields[Col.BAND_WIDTH])
+    }
+
+    @Test
+    fun `buildReport shows CV percent when stats are available`() {
+        // mean=400, stddev=40 → CV = 40/400*100 = 10.0%
+        val stats = mapOf(DrumPart.SNARE to (400.0 to 40.0))
+        val csv = DiagnosticsExporter.buildReport(emptyMap(), stats)
+        val snareRow = csv.lines().first { it.startsWith("Snare") }
+        assertTrue("CV% should appear in row", snareRow.contains("10.0"))
+    }
+
+    @Test
+    fun `buildReport CV column is empty for uncalibrated instrument`() {
+        val csv = DiagnosticsExporter.buildReport(emptyMap(), emptyMap())
+        val bassRow = csv.lines().first { it.startsWith("Bass Drum") }
+        val fields = bassRow.split(",")
+        assertEquals("CV should be empty for uncalibrated instrument", "", fields[Col.CV_PCT])
+    }
+
+    @Test
+    fun `buildReport shows peak frequencies when provided`() {
+        val peaks = mapOf(DrumPart.SNARE to listOf(430, 445, 460, 452, 438))
+        val csv = DiagnosticsExporter.buildReport(emptyMap(), emptyMap(), peaks)
+        val snareRow = csv.lines().first { it.startsWith("Snare") }
+        assertTrue("Peak frequencies should appear in row", snareRow.contains("430"))
+        assertTrue("All peaks should appear in row", snareRow.contains("460"))
+    }
+
+    @Test
+    fun `buildReport peak frequencies column is empty when not provided`() {
+        val csv = DiagnosticsExporter.buildReport(emptyMap(), emptyMap())
+        val bassRow = csv.lines().first { it.startsWith("Bass Drum") }
+        val fields = bassRow.split(",")
+        assertEquals("Peaks should be empty when not calibrated", "", fields[Col.PEAKS])
+    }

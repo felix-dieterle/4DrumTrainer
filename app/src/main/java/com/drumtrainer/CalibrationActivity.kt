@@ -172,6 +172,7 @@ class CalibrationActivity : AppCompatActivity() {
                     if (result != null) {
                         prefs.setCalibration(selectedPart, result.lowHz, result.highHz)
                         prefs.setCalibrationStats(selectedPart, result.meanHz, result.stddevHz)
+                        prefs.setPeakFrequencies(selectedPart, result.peakFrequencies)
                         binding.textCalibrationStatus.text = getString(
                             R.string.calibration_result_detail,
                             result.lowHz,
@@ -216,8 +217,9 @@ class CalibrationActivity : AppCompatActivity() {
 
     private fun exportDiagnostics() {
         val csv = DiagnosticsExporter.buildReport(
-            calibrations = prefs.getAllCalibrations(),
-            stats        = prefs.getAllCalibrationStats()
+            calibrations    = prefs.getAllCalibrations(),
+            stats           = prefs.getAllCalibrationStats(),
+            peakFrequencies = prefs.getAllPeakFrequencies()
         )
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
