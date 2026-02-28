@@ -33,8 +33,8 @@ import kotlin.math.sqrt
  *     calibrator.record(
  *         onProgress    = { pct -> … },
  *         onHitDetected = { n   -> … }
- *     ) { lowHz, highHz ->
- *         // store calibrated range for DrumPart.SNARE
+ *     ) { result ->
+ *         result?.let { prefs.setCalibration(part, it.lowHz, it.highHz) }
  *     }
  * }.start()
  * ```
@@ -49,6 +49,23 @@ class InstrumentCalibrator(
     private val sampleRateHz: Int = 44_100,
     private val onsetDetector: OnsetDetector = OnsetDetector(sampleRateHz)
 ) {
+
+    /**
+     * All data produced by a successful calibration recording session.
+     *
+     * @property lowHz           Estimated lower bound of the dominant frequency band.
+     * @property highHz          Estimated upper bound of the dominant frequency band.
+     * @property meanHz          Mean of the collected peak frequencies.
+     * @property stddevHz        Standard deviation of the collected peak frequencies.
+     * @property peakFrequencies Raw peak-frequency measurements (one per detected hit).
+     */
+    data class CalibrationResult(
+        val lowHz: Int,
+        val highHz: Int,
+        val meanHz: Double,
+        val stddevHz: Double,
+        val peakFrequencies: List<Int>
+    )
 
     companion object {
         /** Number of hits required for a reliable per-instrument calibration. */
@@ -70,16 +87,16 @@ class InstrumentCalibrator(
      * @param maxDurationMs  Safety timeout in milliseconds (default: 10 000).
      * @param onProgress     Optional callback (0–100) updated after each detected hit.
      * @param onHitDetected  Optional callback invoked after each hit, with the running hit count.
-     * @param onComplete     Invoked on the calling thread when done.  Receives the
-     *                       estimated (lowHz, highHz), or (null, null) if no hits
-     *                       were detected during the recording window.
+     * @param onComplete     Invoked on the calling thread when done.  Receives a
+     *                       [CalibrationResult] with the estimated band, mean, stddev and
+     *                       raw peak frequencies, or `null` if no hits were detected.
      */
     fun record(
         requiredHits: Int = CALIBRATION_HITS,
         maxDurationMs: Int = 10_000,
         onProgress: ((pct: Int) -> Unit)? = null,
         onHitDetected: ((hitCount: Int) -> Unit)? = null,
-        onComplete: (lowHz: Int?, highHz: Int?) -> Unit
+        onComplete: (CalibrationResult?) -> Unit
     ) {
         onsetDetector.reset()
 
@@ -138,12 +155,16 @@ class InstrumentCalibrator(
         audioRecord.release()
 
         if (peakFrequencies.isEmpty()) {
-            onComplete(null, null)
+            onComplete(null)
             return
         }
 
         val (low, high) = computeBand(peakFrequencies)
-        onComplete(low, high)
+        val mean = peakFrequencies.average()
+        val variance = peakFrequencies.fold(0.0) { acc, f -> acc + (f - mean) * (f - mean) } /
+            peakFrequencies.size
+        val stddev = sqrt(variance)
+        onComplete(CalibrationResult(low, high, mean, stddev, peakFrequencies.toList()))
     }
 
     /**

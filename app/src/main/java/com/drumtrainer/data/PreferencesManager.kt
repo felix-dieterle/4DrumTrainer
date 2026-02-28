@@ -51,8 +51,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_PROFILE_PIC     = "profile_picture_uri"
         private const val KEY_CHEAT_MODE      = "cheat_mode"
 
-        private fun calKeyLow(part: DrumPart)  = "cal_${part.name}_low"
-        private fun calKeyHigh(part: DrumPart) = "cal_${part.name}_high"
+        private fun calKeyLow(part: DrumPart)    = "cal_${part.name}_low"
+        private fun calKeyHigh(part: DrumPart)   = "cal_${part.name}_high"
+        private fun calKeyMean(part: DrumPart)   = "cal_${part.name}_mean"
+        private fun calKeyStddev(part: DrumPart) = "cal_${part.name}_stddev"
     }
 
     // ── Instrument calibration ────────────────────────────────────────────────
@@ -86,6 +88,8 @@ class PreferencesManager(context: Context) {
         prefs.edit()
             .remove(calKeyLow(part))
             .remove(calKeyHigh(part))
+            .remove(calKeyMean(part))
+            .remove(calKeyStddev(part))
             .apply()
     }
 
@@ -97,5 +101,42 @@ class PreferencesManager(context: Context) {
     fun getAllCalibrations(): Map<DrumPart, Pair<Int, Int>> =
         DrumPart.values().mapNotNull { part ->
             getCalibration(part)?.let { part to it }
+        }.toMap()
+
+    // ── Calibration statistics ────────────────────────────────────────────────
+
+    /**
+     * Persists the statistical summary of a calibration session for [part].
+     *
+     * @param part     The drum instrument that was calibrated.
+     * @param meanHz   Mean of the collected peak frequencies in Hz.
+     * @param stddevHz Standard deviation of the collected peak frequencies in Hz.
+     */
+    fun setCalibrationStats(part: DrumPart, meanHz: Double, stddevHz: Double) {
+        prefs.edit()
+            .putFloat(calKeyMean(part),   meanHz.toFloat())
+            .putFloat(calKeyStddev(part), stddevHz.toFloat())
+            .apply()
+    }
+
+    /**
+     * Returns the previously saved calibration statistics for [part], or `null`
+     * if the instrument has never been calibrated.
+     *
+     * @return Pair of (meanHz, stddevHz) or `null`.
+     */
+    fun getCalibrationStats(part: DrumPart): Pair<Double, Double>? {
+        val mean   = prefs.getFloat(calKeyMean(part),   -1f)
+        val stddev = prefs.getFloat(calKeyStddev(part), -1f)
+        return if (mean >= 0f && stddev >= 0f) mean.toDouble() to stddev.toDouble() else null
+    }
+
+    /**
+     * Returns a map of all [DrumPart]s that have saved calibration statistics.
+     * Parts without statistics are absent from the map.
+     */
+    fun getAllCalibrationStats(): Map<DrumPart, Pair<Double, Double>> =
+        DrumPart.values().mapNotNull { part ->
+            getCalibrationStats(part)?.let { part to it }
         }.toMap()
 }

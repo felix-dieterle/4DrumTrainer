@@ -287,10 +287,11 @@ class LessonActivity : AppCompatActivity() {
                         )
                     }
                 }
-            ) { lowHz, highHz ->
+            ) { result ->
                 runOnUiThread {
-                    if (lowHz != null && highHz != null) {
-                        prefs.setCalibration(part, lowHz, highHz)
+                    if (result != null) {
+                        prefs.setCalibration(part, result.lowHz, result.highHz)
+                        prefs.setCalibrationStats(part, result.meanHz, result.stddevHz)
                         Toast.makeText(
                             this,
                             getString(R.string.adaptation_calibration_done, part.displayName),
