@@ -86,12 +86,13 @@
     <string name="profile_picture_desc">Profilbild</string>
 
     <!-- Calibration screen -->
-    <string name="calibration_instruction">Hit the selected instrument 5 times to calibrate frequency detection for your drum kit. Recording stops automatically once all 5 hits are collected.</string>
+    <string name="calibration_instruction">Press Record to start. First, 3 seconds of background noise are recorded — please be quiet. Then hit the selected instrument 5 times to calibrate frequency detection for your drum kit.</string>
     <string name="calibration_select_instrument">Select Instrument</string>
     <string name="calibration_current">✓ Calibrated: %1$d Hz – %2$d Hz</string>
     <string name="calibration_default">Default: %1$d Hz – %2$d Hz (not calibrated)</string>
+    <string name="calibration_background_noise">🔇 Please be quiet — recording background noise…</string>
     <string name="calibration_hit_progress">🎙 Hit %1$d / %2$d — keep going!</string>
-    <string name="calibration_start_recording">▶ Record (5 hits)</string>
+    <string name="calibration_start_recording">▶ Record (3 s noise + 5 hits)</string>
     <string name="calibration_reset">Reset to Default</string>
     <string name="calibration_saved">Calibration saved!</string>
     <string name="calibration_no_hits">No hits detected — please try again and strike the instrument clearly.</string>

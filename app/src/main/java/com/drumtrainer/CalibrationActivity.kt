@@ -133,11 +133,7 @@ class CalibrationActivity : AppCompatActivity() {
         binding.buttonReset.isEnabled  = false
         binding.progressCalibration.visibility = View.VISIBLE
         binding.progressCalibration.progress   = 0
-        binding.textCalibrationStatus.text = getString(
-            R.string.calibration_hit_progress,
-            0,
-            InstrumentCalibrator.CALIBRATION_HITS
-        )
+        binding.textCalibrationStatus.text = getString(R.string.calibration_background_noise)
 
         Thread {
             calibrator.record(
