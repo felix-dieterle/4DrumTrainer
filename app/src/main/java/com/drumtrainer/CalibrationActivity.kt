@@ -1,6 +1,7 @@
 package com.drumtrainer
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
@@ -10,6 +11,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.drumtrainer.audio.DiagnosticsExporter
 import com.drumtrainer.audio.InstrumentCalibrator
 import com.drumtrainer.data.PreferencesManager
 import com.drumtrainer.databinding.ActivityCalibrationBinding
@@ -67,6 +69,7 @@ class CalibrationActivity : AppCompatActivity() {
 
         binding.buttonRecord.setOnClickListener { requestMicAndRecord() }
         binding.buttonReset.setOnClickListener  { resetCalibration() }
+        binding.buttonExportDiagnostics.setOnClickListener { exportDiagnostics() }
 
         updateCalibrationDisplay()
     }
@@ -140,15 +143,16 @@ class CalibrationActivity : AppCompatActivity() {
                         )
                     }
                 }
-            ) { lowHz, highHz ->
+            ) { result ->
                 runOnUiThread {
                     isRecording = false
                     binding.buttonRecord.isEnabled = true
                     binding.buttonReset.isEnabled  = true
                     binding.progressCalibration.visibility = View.GONE
 
-                    if (lowHz != null && highHz != null) {
-                        prefs.setCalibration(selectedPart, lowHz, highHz)
+                    if (result != null) {
+                        prefs.setCalibration(selectedPart, result.lowHz, result.highHz)
+                        prefs.setCalibrationStats(selectedPart, result.meanHz, result.stddevHz)
                         Toast.makeText(
                             this,
                             getString(R.string.calibration_saved),
@@ -171,6 +175,19 @@ class CalibrationActivity : AppCompatActivity() {
         prefs.clearCalibration(selectedPart)
         updateCalibrationDisplay()
         Toast.makeText(this, getString(R.string.calibration_reset), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun exportDiagnostics() {
+        val csv = DiagnosticsExporter.buildReport(
+            calibrations = prefs.getAllCalibrations(),
+            stats        = prefs.getAllCalibrationStats()
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.diagnostics_export_subject))
+            putExtra(Intent.EXTRA_TEXT, csv)
+        }
+        startActivity(Intent.createChooser(intent, getString(R.string.diagnostics_export_chooser)))
     }
 
     override fun onSupportNavigateUp(): Boolean {
