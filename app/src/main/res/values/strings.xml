@@ -86,12 +86,12 @@
     <string name="profile_picture_desc">Profilbild</string>
 
     <!-- Calibration screen -->
-    <string name="calibration_instruction">Hit each instrument several times while recording to calibrate frequency detection for your drum kit. Tap Record, then strike the selected instrument repeatedly for 3 seconds.</string>
+    <string name="calibration_instruction">Hit the selected instrument 5 times to calibrate frequency detection for your drum kit. Recording stops automatically once all 5 hits are collected.</string>
     <string name="calibration_select_instrument">Select Instrument</string>
     <string name="calibration_current">✓ Calibrated: %1$d Hz – %2$d Hz</string>
     <string name="calibration_default">Default: %1$d Hz – %2$d Hz (not calibrated)</string>
-    <string name="calibration_recording">🎙 Recording… hit the instrument repeatedly!</string>
-    <string name="calibration_start_recording">▶ Record (3 s)</string>
+    <string name="calibration_hit_progress">🎙 Hit %1$d / %2$d — keep going!</string>
+    <string name="calibration_start_recording">▶ Record (5 hits)</string>
     <string name="calibration_reset">Reset to Default</string>
     <string name="calibration_saved">Calibration saved!</string>
     <string name="calibration_no_hits">No hits detected — please try again and strike the instrument clearly.</string>
@@ -105,10 +105,10 @@
     <string name="adaptation_complete">Adaptation complete. Starting training…</string>
     <string name="adaptation_wizard_title">Instrument not detected: %1$s</string>
     <string name="adaptation_wizard_message">This instrument was not recognized during the adaptation phase. What would you like to do?</string>
-    <string name="adaptation_wizard_calibrate">🎚 Calibrate (3 hits)</string>
+    <string name="adaptation_wizard_calibrate">🎚 Calibrate (5 hits)</string>
     <string name="adaptation_wizard_remove">🗑 Remove from kit</string>
     <string name="adaptation_wizard_skip">Skip</string>
-    <string name="adaptation_calibrating">🎙 Recording %1$s… hit it 3 times!</string>
+    <string name="adaptation_calibrating">🎙 Recording %1$s… hit %2$d / %3$d</string>
     <string name="adaptation_calibration_done">✓ %1$s calibrated!</string>
 
     <!-- Teacher / music school search -->
