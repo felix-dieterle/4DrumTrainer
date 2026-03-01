@@ -140,4 +140,46 @@ class DrumHitClassifierTest {
             result?.isCymbal ?: false
         )
     }
+
+    // ── isCalibrated property ─────────────────────────────────────────────────
+
+    @Test
+    fun `isCalibrated is false when no calibration is provided`() {
+        val classifier = DrumHitClassifier(sampleRateHz = sampleRate)
+        assertFalse("No calibration map → isCalibrated should be false", classifier.isCalibrated)
+    }
+
+    @Test
+    fun `isCalibrated is true when calibration map is non-empty`() {
+        val cal = mapOf(DrumPart.BASS_DRUM to (50 to 200))
+        val classifier = DrumHitClassifier(sampleRateHz = sampleRate, calibration = cal)
+        assertTrue("Non-empty calibration map → isCalibrated should be true", classifier.isCalibrated)
+    }
+
+    // ── CALIBRATED_CONFIDENCE_RATIO constant ──────────────────────────────────
+
+    @Test
+    fun `CALIBRATED_CONFIDENCE_RATIO is greater than 1`() {
+        assertTrue(
+            "CALIBRATED_CONFIDENCE_RATIO must be > 1.0 to reject ambiguous hits",
+            DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO > 1.0f
+        )
+    }
+
+    @Test
+    fun `calibrated classifier rejects ambiguous hit using CALIBRATED_CONFIDENCE_RATIO`() {
+        // Two overlapping bands → best and second-best have similar energies.
+        val cal = mapOf(
+            DrumPart.BASS_DRUM to (50 to 500),
+            DrumPart.SNARE     to (50 to 500)
+        )
+        val classifier = DrumHitClassifier(sampleRateHz = sampleRate, calibration = cal)
+        val snippet = sineSnippet(100)
+        // Using the calibrated confidence ratio must reject the ambiguous tie.
+        val result = classifier.classify(snippet, confidenceRatio = DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO)
+        assertNull(
+            "Calibrated confidence ratio should return null for equally-matched bands",
+            result
+        )
+    }
 }

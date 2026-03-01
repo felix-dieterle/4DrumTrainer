@@ -111,7 +111,11 @@ class AdaptationManager(
             val size = minOf(512, snippetBuffer.size)
             val start = (snippetWritePos - size).coerceAtLeast(0)
             val snippet = FloatArray(size) { snippetBuffer[(start + it) % snippetBuffer.size] }
-            val part = classifier.classify(snippet)
+            val part = classifier.classify(
+                snippet,
+                confidenceRatio = if (classifier.isCalibrated)
+                    DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
+            )
             if (part != null) {
                 detectedParts.add(part)
                 onHitDetected?.invoke(part)
