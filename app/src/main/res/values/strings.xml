@@ -100,6 +100,7 @@
     <string name="calibration_saved">Calibration saved!</string>
     <string name="calibration_no_hits">No hits detected — please try again and strike the instrument clearly.</string>
     <string name="calibration_export_diagnostics">📊 Export Diagnostics</string>
+    <string name="calibration_refine_profiles">🎯 Refine Profiles</string>
     <string name="diagnostics_export_subject">4DrumTrainer – Instrument Frequency Diagnostics</string>
     <string name="diagnostics_export_chooser">Share diagnostics via…</string>
     <string name="calibration_sensitivity_label">Mic Sensitivity</string>
@@ -108,6 +109,23 @@
     <string name="calibration_sensitivity_hint">Reduce sensitivity if ambient noise triggers false hits; increase it if real hits are not detected.</string>
 
     <string name="add_drum">Add Drum</string>
+
+    <!-- Profile Refinement screen -->
+    <string name="title_profile_refinement">Refine Profiles</string>
+    <string name="refinement_instruction">Hit your drums freely during each round. The app classifies every hit using your calibrated profiles and shows the result instantly. Run multiple rounds to verify that each instrument is reliably identified — this is the second stage of full-kit calibration.</string>
+    <string name="refinement_calibrated_title">Calibrated Instruments</string>
+    <string name="refinement_no_calibrations">No instruments calibrated yet. Please calibrate at least 2 instruments first.</string>
+    <string name="refinement_start_round">▶ Start Round</string>
+    <string name="refinement_stop_round">■ Stop Round</string>
+    <string name="refinement_done">Done</string>
+    <string name="refinement_idle">Press Start Round to begin</string>
+    <string name="refinement_listening">🎙 Listening… hit your instruments!</string>
+    <string name="refinement_hit_detected">🥁 Detected: %1$s</string>
+    <string name="refinement_hit_result">#%1$d → %2$s</string>
+    <string name="refinement_round_complete">✓ Round %1$d complete — start another round or press Done</string>
+    <string name="refinement_rounds_done">Completed rounds: %1$d</string>
+    <string name="refinement_results_title">Detection Results (newest first):</string>
+    <string name="refinement_round_divider">─── Round %1$d ───</string>
 
     <!-- Adaptation phase (warm-up before training) -->
     <string name="adaptation_instruction">🥁 Please hit each instrument at least once so the app can detect your drum kit and measure background noise levels.</string>

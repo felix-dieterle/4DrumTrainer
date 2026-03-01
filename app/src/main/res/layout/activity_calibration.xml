@@ -137,7 +137,18 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/calibration_export_diagnostics"
-            android:padding="12dp" />
+            android:padding="12dp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Refine profiles button — visible once ≥ 2 instruments are calibrated -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonRefineProfiles"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/calibration_refine_profiles"
+            android:padding="12dp"
+            android:visibility="gone" />
 
     </LinearLayout>
 

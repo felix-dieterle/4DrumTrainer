@@ -2,6 +2,7 @@ package com.drumtrainer.audio
 
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.File
 import kotlin.math.sin
 
 class InstrumentCalibratorTest {
@@ -122,5 +123,45 @@ class InstrumentCalibratorTest {
         val freqs = listOf(300, 350, 400, 450, 500)
         val (low, high) = calibrator.computeBand(freqs)
         assertTrue("Low ($low) must be less than high ($high)", low < high)
+    }
+
+    // ── writeWavFile ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `writeWavFile produces a file with correct RIFF and WAVE headers`() {
+        val file = File.createTempFile("test_wav", ".wav")
+        try {
+            val pcm = ByteArray(4) { 0 } // 2 silent 16-bit samples
+            calibrator.writeWavFile(file, pcm, 44_100)
+
+            val bytes = file.readBytes()
+            // Minimum WAV size: 44 bytes header + data
+            assertTrue("WAV file must be at least 44 bytes", bytes.size >= 44)
+            assertEquals("RIFF", String(bytes.copyOfRange(0, 4)))
+            assertEquals("WAVE", String(bytes.copyOfRange(8, 12)))
+            assertEquals("fmt ", String(bytes.copyOfRange(12, 16)))
+            assertEquals("data", String(bytes.copyOfRange(36, 40)))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `writeWavFile data chunk size matches pcm byte count`() {
+        val file = File.createTempFile("test_wav_size", ".wav")
+        try {
+            val pcm = ByteArray(200) { it.toByte() }
+            calibrator.writeWavFile(file, pcm, 44_100)
+
+            val bytes = file.readBytes()
+            // Bytes 40–43 are the data chunk size in little-endian.
+            val dataSize = (bytes[40].toInt() and 0xFF) or
+                ((bytes[41].toInt() and 0xFF) shl 8) or
+                ((bytes[42].toInt() and 0xFF) shl 16) or
+                ((bytes[43].toInt() and 0xFF) shl 24)
+            assertEquals("Data chunk size must equal PCM byte count", pcm.size, dataSize)
+        } finally {
+            file.delete()
+        }
     }
 }
