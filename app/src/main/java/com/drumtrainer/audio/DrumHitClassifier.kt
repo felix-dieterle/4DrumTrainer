@@ -46,6 +46,14 @@ class DrumHitClassifier(
     private val calibration: Map<DrumPart, Pair<Int, Int>> = emptyMap()
 ) {
 
+    /**
+     * Returns `true` when per-instrument calibration data has been provided, meaning
+     * the frequency bands used for classification are kit-specific rather than the
+     * broad factory defaults.  When calibrated, a higher [confidenceRatio] can be
+     * used in [classify] to reject ambiguous hits rather than guess.
+     */
+    val isCalibrated: Boolean get() = calibration.isNotEmpty()
+
     companion object {
         /**
          * Frequency boundary (Hz) above which cymbals concentrate most of their
@@ -62,6 +70,18 @@ class DrumHitClassifier(
          * lie above [CYMBAL_HF_THRESHOLD_HZ] for the hit to be considered a cymbal.
          */
         const val CYMBAL_HF_RATIO_THRESHOLD = 0.4f
+
+        /**
+         * Default [confidenceRatio] applied when per-instrument calibration data is
+         * available ([isCalibrated] is `true`).  The winner's band energy must be at
+         * least this many times the runner-up's energy; hits that fall in the overlap
+         * between two calibrated bands return `null` rather than a wrong instrument.
+         *
+         * With a value of 1.5 the classifier rejects hits where the best band has
+         * less than 50 % more energy than the second-best, which covers the common
+         * case of e-drum rattle or sympathetic pad resonance contaminating the snippet.
+         */
+        const val CALIBRATED_CONFIDENCE_RATIO = 1.5f
     }
 
     /**

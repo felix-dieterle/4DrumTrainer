@@ -328,6 +328,10 @@ class LessonActivity : AppCompatActivity() {
             audioProcessor.setNoiseFloor(adaptationNoiseThreshold)
         }
 
+        // Apply the user's microphone sensitivity setting from preferences so that
+        // the same threshold used during calibration is also active during free play.
+        audioProcessor.setOnsetThreshold(micSensitivityToThreshold(prefs.micSensitivity))
+
         expectedTimestamps.clear()
         expectedTimestamps.addAll(
             audioProcessor.buildExpectedTimestamps(
@@ -521,6 +525,18 @@ class LessonActivity : AppCompatActivity() {
         metronomeHandler.removeCallbacksAndMessages(null)
         if (isRecording) audioProcessor.stopRecording(emptyList())
     }
+
+    /**
+     * Maps SeekBar progress (0–10) to an onset threshold factor used by
+     * [OnsetDetector].  Mirrors the same formula used in
+     * [CalibrationActivity.sensitivityToThreshold] so that the same user
+     * preference governs both calibration and free play.
+     *
+     * - progress 0  → factor 6.0 (low sensitivity: requires loud hits, ignores most noise)
+     * - progress 5  → factor 3.5 (default: balanced)
+     * - progress 10 → factor 1.0 (high sensitivity: detects quiet hits but also picks up noise)
+     */
+    private fun micSensitivityToThreshold(progress: Int): Float = 6.0f - progress * 0.5f
 
     override fun onSupportNavigateUp(): Boolean {
         onBackPressedDispatcher.onBackPressed()

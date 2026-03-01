@@ -87,7 +87,11 @@ class AudioProcessor(
 
         onsetDetector.onOnset = { timestampMs ->
             val snippet  = extractSnippet()
-            val part     = classifier.classify(snippet)
+            val part     = classifier.classify(
+                snippet,
+                confidenceRatio = if (classifier.isCalibrated)
+                    DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
+            )
             val velocity = computeRms(snippet)
             val wallMs   = recordingStartMs + timestampMs
             synchronized(detectedHits) { detectedHits.add(wallMs to part) }
@@ -169,6 +173,24 @@ class AudioProcessor(
      */
     fun setNoiseFloor(threshold: Float) {
         onsetDetector.absoluteMinRms = threshold
+    }
+
+    /**
+     * Adjusts how aggressively the onset detector requires an energy spike above
+     * the rolling background RMS before declaring a drum hit.
+     *
+     * Higher values reduce false positives from ambient noise (e.g. e-drum rattle
+     * or background sounds) at the cost of potentially missing soft hits.
+     * Lower values detect quieter hits but may trigger on noise.  The value is
+     * mapped from the sensitivity SeekBar in [CalibrationActivity]
+     * and should be kept in sync with that mapping so free-play detection responds
+     * to the same user preference as calibration.
+     *
+     * @param factor  Ratio above rolling RMS background required for an energy-onset
+     *                event (passed through to [OnsetDetector.onsetThresholdFactor]).
+     */
+    fun setOnsetThreshold(factor: Float) {
+        onsetDetector.onsetThresholdFactor = factor
     }
 
     private fun extractSnippet(): FloatArray {
