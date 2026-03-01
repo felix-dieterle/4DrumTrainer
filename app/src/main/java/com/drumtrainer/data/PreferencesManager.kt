@@ -63,11 +63,12 @@ class PreferencesManager(context: Context) {
         private const val KEY_CHEAT_MODE      = "cheat_mode"
         private const val KEY_MIC_SENSITIVITY = "mic_sensitivity"
 
-        private fun calKeyLow(part: DrumPart)    = "cal_${part.name}_low"
-        private fun calKeyHigh(part: DrumPart)   = "cal_${part.name}_high"
-        private fun calKeyMean(part: DrumPart)   = "cal_${part.name}_mean"
-        private fun calKeyStddev(part: DrumPart) = "cal_${part.name}_stddev"
-        private fun calKeyPeaks(part: DrumPart)  = "cal_${part.name}_peaks"
+        private fun calKeyLow(part: DrumPart)       = "cal_${part.name}_low"
+        private fun calKeyHigh(part: DrumPart)      = "cal_${part.name}_high"
+        private fun calKeyMean(part: DrumPart)      = "cal_${part.name}_mean"
+        private fun calKeyStddev(part: DrumPart)    = "cal_${part.name}_stddev"
+        private fun calKeyPeaks(part: DrumPart)     = "cal_${part.name}_peaks"
+        private fun calKeyRecording(part: DrumPart) = "cal_${part.name}_recording"
     }
 
     // ── Instrument calibration ────────────────────────────────────────────────
@@ -104,6 +105,7 @@ class PreferencesManager(context: Context) {
             .remove(calKeyMean(part))
             .remove(calKeyStddev(part))
             .remove(calKeyPeaks(part))
+            .remove(calKeyRecording(part))
             .apply()
     }
 
@@ -190,5 +192,33 @@ class PreferencesManager(context: Context) {
     fun getAllPeakFrequencies(): Map<DrumPart, List<Int>> =
         DrumPart.values().mapNotNull { part ->
             getPeakFrequencies(part)?.let { part to it }
+        }.toMap()
+
+    // ── Calibration recording paths ───────────────────────────────────────────
+
+    /**
+     * Persists the absolute file path of the WAV recording saved during calibration of [part].
+     *
+     * @param part  The drum instrument that was calibrated.
+     * @param path  Absolute path to the saved WAV file.
+     */
+    fun setRecordingPath(part: DrumPart, path: String) {
+        prefs.edit().putString(calKeyRecording(part), path).apply()
+    }
+
+    /**
+     * Returns the absolute path of the WAV recording saved during calibration of [part],
+     * or `null` if no recording has been saved for that instrument.
+     */
+    fun getRecordingPath(part: DrumPart): String? =
+        prefs.getString(calKeyRecording(part), null)
+
+    /**
+     * Returns a map of all [DrumPart]s that have a saved calibration recording path.
+     * Parts without a recording are absent from the map.
+     */
+    fun getAllRecordingPaths(): Map<DrumPart, String> =
+        DrumPart.values().mapNotNull { part ->
+            getRecordingPath(part)?.let { part to it }
         }.toMap()
 }

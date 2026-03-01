@@ -17,6 +17,7 @@ import com.drumtrainer.audio.InstrumentCalibrator
 import com.drumtrainer.data.PreferencesManager
 import com.drumtrainer.databinding.ActivityCalibrationBinding
 import com.drumtrainer.model.DrumPart
+import java.io.File
 
 /**
  * Guides the user through calibrating each drum instrument by recording
@@ -71,6 +72,9 @@ class CalibrationActivity : AppCompatActivity() {
         binding.buttonRecord.setOnClickListener { requestMicAndRecord() }
         binding.buttonReset.setOnClickListener  { resetCalibration() }
         binding.buttonExportDiagnostics.setOnClickListener { exportDiagnostics() }
+        binding.buttonRefineProfiles.setOnClickListener {
+            startActivity(Intent(this, ProfileRefinementActivity::class.java))
+        }
 
         binding.seekBarSensitivity.progress = prefs.micSensitivity
         binding.seekBarSensitivity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -82,6 +86,7 @@ class CalibrationActivity : AppCompatActivity() {
         })
 
         updateCalibrationDisplay()
+        updateRefineButtonVisibility()
     }
 
     private fun updateCalibrationDisplay() {
@@ -99,6 +104,16 @@ class CalibrationActivity : AppCompatActivity() {
                 selectedPart.freqRangeHighHz
             )
         }
+    }
+
+    /**
+     * Shows the "Refine Profiles" button whenever at least two instruments have
+     * been calibrated, enabling multi-instrument profile comparison.
+     */
+    private fun updateRefineButtonVisibility() {
+        val calibratedCount = prefs.getAllCalibrations().size
+        binding.buttonRefineProfiles.visibility =
+            if (calibratedCount >= 2) View.VISIBLE else View.GONE
     }
 
     private fun requestMicAndRecord() {
@@ -139,9 +154,12 @@ class CalibrationActivity : AppCompatActivity() {
         binding.progressCalibration.progress   = 0
         binding.textCalibrationStatus.text = getString(R.string.calibration_background_noise)
 
+        val recordingFile = File(filesDir, "cal_${selectedPart.name}.wav")
+
         Thread {
             calibrator.record(
                 sensitivityFactor = sensitivityToThreshold(binding.seekBarSensitivity.progress),
+                audioOutputFile   = recordingFile,
                 onProgress = { pct ->
                     runOnUiThread { binding.progressCalibration.progress = pct }
                 },
@@ -173,6 +191,10 @@ class CalibrationActivity : AppCompatActivity() {
                         prefs.setCalibration(selectedPart, result.lowHz, result.highHz)
                         prefs.setCalibrationStats(selectedPart, result.meanHz, result.stddevHz)
                         prefs.setPeakFrequencies(selectedPart, result.peakFrequencies)
+                        if (result.audioFilePath != null) {
+                            prefs.setRecordingPath(selectedPart, result.audioFilePath)
+                        }
+                        updateRefineButtonVisibility()
                         binding.textCalibrationStatus.text = getString(
                             R.string.calibration_result_detail,
                             result.lowHz,
@@ -202,6 +224,7 @@ class CalibrationActivity : AppCompatActivity() {
     private fun resetCalibration() {
         prefs.clearCalibration(selectedPart)
         updateCalibrationDisplay()
+        updateRefineButtonVisibility()
         Toast.makeText(this, getString(R.string.calibration_reset), Toast.LENGTH_SHORT).show()
     }
 

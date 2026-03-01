@@ -64,6 +64,12 @@
             android:label="@string/title_calibration" />
 
         <activity
+            android:name=".ProfileRefinementActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:label="@string/title_profile_refinement" />
+
+        <activity
             android:name=".TeacherSearchActivity"
             android:exported="false"
             android:screenOrientation="portrait"

@@ -3,6 +3,10 @@ package com.drumtrainer.audio
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import java.io.BufferedOutputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -58,13 +62,16 @@ class InstrumentCalibrator(
      * @property meanHz          Mean of the collected peak frequencies.
      * @property stddevHz        Standard deviation of the collected peak frequencies.
      * @property peakFrequencies Raw peak-frequency measurements (one per detected hit).
+     * @property audioFilePath   Absolute path to the saved WAV recording of the hit phase,
+     *                           or `null` if no [audioOutputFile] was supplied to [record].
      */
     data class CalibrationResult(
         val lowHz: Int,
         val highHz: Int,
         val meanHz: Double,
         val stddevHz: Double,
-        val peakFrequencies: List<Int>
+        val peakFrequencies: List<Int>,
+        val audioFilePath: String? = null
     )
 
     companion object {
@@ -98,6 +105,10 @@ class InstrumentCalibrator(
      *                                 Default: the detector's current [OnsetDetector.onsetThresholdFactor] (3.0).
      * @param backgroundNoiseDurationMs Duration in milliseconds to record background noise before
      *                                 the hit detection phase (default: 3 000).
+     * @param audioOutputFile          Optional [File] to which the hit-phase audio is saved as a
+     *                                 16-bit mono PCM WAV file.  Useful for comparing recordings
+     *                                 across instruments and for profile refinement.  When `null`
+     *                                 (default) no file is written.
      * @param onBackgroundNoisePhase   Optional callback invoked at the very start of the background
      *                                 noise recording phase, before any audio is read.
      * @param onHitPhaseStart          Optional callback invoked once the background noise phase has
@@ -113,6 +124,7 @@ class InstrumentCalibrator(
         maxDurationMs: Int = 10_000,
         sensitivityFactor: Float = onsetDetector.onsetThresholdFactor,
         backgroundNoiseDurationMs: Int = 3_000,
+        audioOutputFile: File? = null,
         onBackgroundNoisePhase: (() -> Unit)? = null,
         onHitPhaseStart: (() -> Unit)? = null,
         onProgress: ((pct: Int) -> Unit)? = null,
@@ -191,11 +203,22 @@ class InstrumentCalibrator(
         val totalSamples = sampleRateHz.toLong() * maxDurationMs / 1000
         var samplesRead  = 0L
 
+        // Accumulate raw PCM bytes from the hit phase so they can be saved as a WAV file.
+        val hitPcmStream = if (audioOutputFile != null) ByteArrayOutputStream() else null
+
         while (samplesRead < totalSamples && peakFrequencies.size < requiredHits) {
             val read = audioRecord.read(rawBuffer, 0, rawBuffer.size)
             if (read <= 0) continue
             for (i in 0 until read) {
                 floatBuffer[i] = rawBuffer[i] / 32768f
+            }
+            // Collect raw 16-bit LE bytes for WAV output.
+            if (hitPcmStream != null) {
+                for (i in 0 until read) {
+                    val s = rawBuffer[i].toInt()
+                    hitPcmStream.write(s and 0xFF)
+                    hitPcmStream.write((s shr 8) and 0xFF)
+                }
             }
             // Process one detector frame at a time so that when onOnset fires,
             // the circular buffer contains exactly the onset frame – not samples
@@ -221,12 +244,63 @@ class InstrumentCalibrator(
             return
         }
 
+        // Write hit-phase audio to a WAV file if requested.
+        var savedFilePath: String? = null
+        if (audioOutputFile != null && hitPcmStream != null && hitPcmStream.size() > 0) {
+            try {
+                writeWavFile(audioOutputFile, hitPcmStream.toByteArray(), sampleRateHz)
+                savedFilePath = audioOutputFile.absolutePath
+            } catch (_: Exception) {
+                // Best-effort: don't fail calibration if file I/O fails.
+            }
+        }
+
         val (low, high) = computeBand(peakFrequencies)
         val mean = peakFrequencies.average()
         val variance = peakFrequencies.fold(0.0) { acc, f -> acc + (f - mean) * (f - mean) } /
             peakFrequencies.size
         val stddev = sqrt(variance)
-        onComplete(CalibrationResult(low, high, mean, stddev, peakFrequencies.toList()))
+        onComplete(CalibrationResult(low, high, mean, stddev, peakFrequencies.toList(), savedFilePath))
+    }
+
+    /**
+     * Writes [pcmBytes] (signed 16-bit little-endian mono PCM) to [file] as a
+     * standard WAV (RIFF) container.
+     *
+     * `internal` so it can be exercised directly in unit tests without requiring
+     * a real microphone.
+     */
+    internal fun writeWavFile(file: File, pcmBytes: ByteArray, sampleRate: Int) {
+        val dataSize = pcmBytes.size
+        FileOutputStream(file).use { fos ->
+            BufferedOutputStream(fos).use { out ->
+                out.write("RIFF".toByteArray())
+                out.writeLE32(36 + dataSize)   // total file size minus 8 bytes
+                out.write("WAVE".toByteArray())
+                out.write("fmt ".toByteArray())
+                out.writeLE32(16)              // fmt chunk size
+                out.writeLE16(1)               // PCM format
+                out.writeLE16(1)               // mono
+                out.writeLE32(sampleRate)
+                out.writeLE32(sampleRate * 2)  // byte rate (sampleRate * 1ch * 2 bytes)
+                out.writeLE16(2)               // block align
+                out.writeLE16(16)              // bits per sample
+                out.write("data".toByteArray())
+                out.writeLE32(dataSize)
+                out.write(pcmBytes)
+            }
+        }
+    }
+
+    /** Writes a 32-bit integer in little-endian byte order to this stream. */
+    private fun BufferedOutputStream.writeLE32(v: Int) {
+        write(v and 0xFF); write((v shr 8) and 0xFF)
+        write((v shr 16) and 0xFF); write((v shr 24) and 0xFF)
+    }
+
+    /** Writes a 16-bit integer in little-endian byte order to this stream. */
+    private fun BufferedOutputStream.writeLE16(v: Int) {
+        write(v and 0xFF); write((v shr 8) and 0xFF)
     }
 
     /**
