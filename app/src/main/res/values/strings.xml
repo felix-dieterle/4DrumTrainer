@@ -101,6 +101,8 @@
     <string name="calibration_no_hits">No hits detected — please try again and strike the instrument clearly.</string>
     <string name="calibration_export_diagnostics">📊 Export Diagnostics</string>
     <string name="calibration_refine_profiles">🎯 Refine Profiles</string>
+    <string name="calibration_completeness">Calibrated: %1$d / %2$d instruments</string>
+    <string name="calibration_overlap_warning">⚠️ Band overlaps with: %1$s — consider re-calibrating for better separation.</string>
     <string name="diagnostics_export_subject">4DrumTrainer – Instrument Frequency Diagnostics</string>
     <string name="diagnostics_export_chooser">Share diagnostics via…</string>
     <string name="calibration_sensitivity_label">Mic Sensitivity</string>
@@ -126,6 +128,10 @@
     <string name="refinement_rounds_done">Completed rounds: %1$d</string>
     <string name="refinement_results_title">Detection Results (newest first):</string>
     <string name="refinement_round_divider">─── Round %1$d ───</string>
+    <string name="refinement_export_results">📊 Export Detection Results</string>
+    <string name="refinement_export_subject">4DrumTrainer – Refinement Detection Results</string>
+    <string name="refinement_export_chooser">Share detection results via…</string>
+    <string name="refinement_no_hits_to_export">No hits recorded yet — run at least one round first.</string>
 
     <!-- Adaptation phase (warm-up before training) -->
     <string name="adaptation_instruction">🥁 Please hit each instrument at least once so the app can detect your drum kit and measure background noise levels.</string>

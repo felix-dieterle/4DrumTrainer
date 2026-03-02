@@ -107,13 +107,37 @@ class CalibrationActivity : AppCompatActivity() {
     }
 
     /**
+     * Builds a localised warning string listing every other [DrumPart] whose
+     * effective band overlaps [resultLowHz, resultHighHz].  Returns an empty
+     * string when there are no overlaps so the caller can skip the warning.
+     */
+    private fun buildOverlapWarning(resultLowHz: Int, resultHighHz: Int): String {
+        val allCalibrations = prefs.getAllCalibrations()
+        val overlapping = DrumPart.values().filter { other ->
+            if (other == selectedPart) return@filter false
+            val (oLow, oHigh) = allCalibrations[other]
+                ?: (other.freqRangeLowHz to other.freqRangeHighHz)
+            DiagnosticsExporter.bandsOverlap(resultLowHz, resultHighHz, oLow to oHigh)
+        }
+        return if (overlapping.isEmpty()) ""
+        else getString(
+            R.string.calibration_overlap_warning,
+            overlapping.joinToString(", ") { it.displayName }
+        )
+    }
+
+    /**
      * Shows the "Refine Profiles" button whenever at least two instruments have
      * been calibrated, enabling multi-instrument profile comparison.
+     * Also updates the calibration completeness counter.
      */
     private fun updateRefineButtonVisibility() {
         val calibratedCount = prefs.getAllCalibrations().size
+        val totalCount = DrumPart.values().size
         binding.buttonRefineProfiles.visibility =
             if (calibratedCount >= 2) View.VISIBLE else View.GONE
+        binding.textCalibrationCompleteness.text =
+            getString(R.string.calibration_completeness, calibratedCount, totalCount)
     }
 
     private fun requestMicAndRecord() {
@@ -195,7 +219,8 @@ class CalibrationActivity : AppCompatActivity() {
                             prefs.setRecordingPath(selectedPart, result.audioFilePath)
                         }
                         updateRefineButtonVisibility()
-                        binding.textCalibrationStatus.text = getString(
+                        val overlapWarning = buildOverlapWarning(result.lowHz, result.highHz)
+                        val detail = getString(
                             R.string.calibration_result_detail,
                             result.lowHz,
                             result.highHz,
@@ -203,6 +228,8 @@ class CalibrationActivity : AppCompatActivity() {
                             result.stddevHz,
                             result.peakFrequencies.joinToString(", ")
                         )
+                        binding.textCalibrationStatus.text =
+                            if (overlapWarning.isEmpty()) detail else "$detail\n\n$overlapWarning"
                         Toast.makeText(
                             this,
                             getString(R.string.calibration_saved),

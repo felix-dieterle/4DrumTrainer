@@ -53,6 +53,12 @@ object DiagnosticsExporter {
         "Peak Frequencies Hz"
     ).joinToString(",")
 
+    private val REFINEMENT_HEADER = listOf(
+        "Round",
+        "Hit #",
+        "Detected Instrument"
+    ).joinToString(",")
+
     /**
      * Builds the CSV report.
      *
@@ -120,6 +126,66 @@ object DiagnosticsExporter {
         }
 
         return (listOf(HEADER) + rows).joinToString("\n")
+    }
+
+    /**
+     * Builds a CSV report of all drum-hit detection results collected during one
+     * or more [ProfileRefinementActivity] rounds.
+     *
+     * Each row represents a single detected hit and contains:
+     * - **Round** – the refinement round number (1-based).
+     * - **Hit #** – the hit index within that round (1-based).
+     * - **Detected Instrument** – [DrumPart.displayName] of the classified instrument,
+     *   or "Unknown" if the hit could not be classified.
+     *
+     * A summary block is appended after the data rows showing:
+     * - Total hits detected
+     * - Number and percentage of unrecognised hits
+     * - Per-instrument hit count
+     *
+     * This report is intended for offline analysis of how well the current
+     * calibration profiles distinguish each instrument during live play.
+     *
+     * @param hits  Ordered list of (round, hitIndex, detectedPart) triples as
+     *              accumulated by [ProfileRefinementActivity].
+     * @param unknownLabel  Display string for unclassified hits (default: "Unknown").
+     * @return Multi-line CSV string with a header row, one data row per hit, and
+     *         a summary block.
+     */
+    fun buildRefinementReport(
+        hits: List<Triple<Int, Int, DrumPart?>>,
+        unknownLabel: String = "Unknown"
+    ): String {
+        val rows = hits.map { (round, hitIdx, part) ->
+            listOf(
+                round.toString(),
+                hitIdx.toString(),
+                csvCell(part?.displayName ?: unknownLabel)
+            ).joinToString(",")
+        }
+
+        val total = hits.size
+        val unrecognised = hits.count { it.third == null }
+        val unrecognisedPct = if (total > 0)
+            String.format(Locale.ROOT, "%.1f", unrecognised.toDouble() / total * 100.0)
+        else "0.0"
+
+        val perInstrument = DrumPart.values()
+            .mapNotNull { part ->
+                val count = hits.count { it.third == part }
+                if (count > 0) "${part.displayName}: $count" else null
+            }
+            .joinToString("; ")
+
+        val summary = listOf(
+            "",
+            "# Summary",
+            "# Total hits,$total",
+            "# Unrecognised hits,$unrecognised ($unrecognisedPct%)",
+            if (perInstrument.isNotEmpty()) "# Per instrument,$perInstrument" else "# Per instrument,none"
+        )
+
+        return (listOf(REFINEMENT_HEADER) + rows + summary).joinToString("\n")
     }
 
     /** Returns `true` if [aLow, aHigh] overlaps [bLow, bHigh]. */
