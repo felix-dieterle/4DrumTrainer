@@ -180,3 +180,94 @@ class DiagnosticsExporterTest {
         val fields = bassRow.split(",")
         assertEquals("Peaks should be empty when not calibrated", "", fields[Col.PEAKS])
     }
+
+    // ── buildRefinementReport ─────────────────────────────────────────────────
+
+    @Test
+    fun `buildRefinementReport contains header row`() {
+        val csv = DiagnosticsExporter.buildRefinementReport(emptyList())
+        assertTrue("Report should start with header", csv.startsWith("Round,"))
+        assertTrue("Header should contain Hit # column", csv.contains("Hit #"))
+        assertTrue("Header should contain Detected Instrument column", csv.contains("Detected Instrument"))
+    }
+
+    @Test
+    fun `buildRefinementReport lists one row per hit`() {
+        val hits = listOf(
+            Triple(1, 1, DrumPart.SNARE),
+            Triple(1, 2, DrumPart.BASS_DRUM),
+            Triple(2, 1, null)
+        )
+        val csv = DiagnosticsExporter.buildRefinementReport(hits)
+        val dataRows = csv.lines().filter { it.isNotEmpty() && !it.startsWith("#") && !it.startsWith("Round") }
+        assertEquals("One data row per hit", 3, dataRows.size)
+    }
+
+    @Test
+    fun `buildRefinementReport encodes round and hit index correctly`() {
+        val hits = listOf(Triple(2, 3, DrumPart.HI_HAT_CLOSED))
+        val csv = DiagnosticsExporter.buildRefinementReport(hits)
+        val dataRow = csv.lines().first { it.startsWith("2,") }
+        assertTrue("Row should contain round 2", dataRow.startsWith("2,"))
+        assertTrue("Row should contain hit index 3", dataRow.contains(",3,"))
+        assertTrue("Row should contain instrument name", dataRow.contains("Hi-Hat (closed)"))
+    }
+
+    @Test
+    fun `buildRefinementReport uses unknownLabel for null DrumPart`() {
+        val hits = listOf(Triple(1, 1, null as DrumPart?))
+        val csv = DiagnosticsExporter.buildRefinementReport(hits)
+        assertTrue("Null hit should appear as Unknown", csv.contains("Unknown"))
+    }
+
+    @Test
+    fun `buildRefinementReport uses custom unknownLabel when provided`() {
+        val hits = listOf(Triple(1, 1, null as DrumPart?))
+        val csv = DiagnosticsExporter.buildRefinementReport(hits, unknownLabel = "Unrecognised")
+        assertTrue("Custom label should appear", csv.contains("Unrecognised"))
+        assertFalse("Default label should not appear", csv.contains("Unknown"))
+    }
+
+    @Test
+    fun `buildRefinementReport summary shows correct total hit count`() {
+        val hits = listOf(
+            Triple(1, 1, DrumPart.SNARE),
+            Triple(1, 2, DrumPart.SNARE),
+            Triple(1, 3, null as DrumPart?)
+        )
+        val csv = DiagnosticsExporter.buildRefinementReport(hits)
+        assertTrue("Summary should show total of 3 hits", csv.contains("# Total hits,3"))
+    }
+
+    @Test
+    fun `buildRefinementReport summary shows correct unrecognised count and percent`() {
+        val hits = listOf(
+            Triple(1, 1, DrumPart.SNARE),
+            Triple(1, 2, null as DrumPart?),
+            Triple(1, 3, null as DrumPart?)
+        )
+        val csv = DiagnosticsExporter.buildRefinementReport(hits)
+        assertTrue("Summary should show 2 unrecognised hits", csv.contains("# Unrecognised hits,2"))
+        assertTrue("Summary should show 66.7%", csv.contains("66.7%"))
+    }
+
+    @Test
+    fun `buildRefinementReport summary shows per-instrument counts`() {
+        val hits = listOf(
+            Triple(1, 1, DrumPart.SNARE),
+            Triple(1, 2, DrumPart.SNARE),
+            Triple(1, 3, DrumPart.BASS_DRUM)
+        )
+        val csv = DiagnosticsExporter.buildRefinementReport(hits)
+        assertTrue("Summary should list Snare count", csv.contains("Snare: 2"))
+        assertTrue("Summary should list Bass Drum count", csv.contains("Bass Drum: 1"))
+    }
+
+    @Test
+    fun `buildRefinementReport on empty list produces header and zero-count summary`() {
+        val csv = DiagnosticsExporter.buildRefinementReport(emptyList())
+        assertTrue("Report should still have header", csv.contains("Round,Hit #"))
+        assertTrue("Summary should show 0 total hits", csv.contains("# Total hits,0"))
+        assertTrue("Summary should show 0 unrecognised hits", csv.contains("# Unrecognised hits,0"))
+    }
+}

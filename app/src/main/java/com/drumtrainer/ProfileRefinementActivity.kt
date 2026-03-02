@@ -1,6 +1,7 @@
 package com.drumtrainer
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -8,9 +9,11 @@ import android.media.MediaRecorder
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.drumtrainer.audio.DiagnosticsExporter
 import com.drumtrainer.audio.DrumHitClassifier
 import com.drumtrainer.audio.OnsetDetector
 import com.drumtrainer.data.PreferencesManager
@@ -49,6 +52,13 @@ class ProfileRefinementActivity : AppCompatActivity() {
 
     private var completedRounds = 0
     private var roundHitCount = 0
+    private var currentRound = 0
+
+    /**
+     * Structured log of every detected hit: (round, hitIndex, detectedPart).
+     * Populated alongside the on-screen TextViews so the data can be exported.
+     */
+    private val refinementHits = mutableListOf<Triple<Int, Int, DrumPart?>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +76,7 @@ class ProfileRefinementActivity : AppCompatActivity() {
             if (isRecording) stopRound() else requestMicAndStart()
         }
         binding.buttonDone.setOnClickListener { finish() }
+        binding.buttonExportRefinement.setOnClickListener { exportRefinementResults() }
 
         updateStatusUI()
     }
@@ -112,6 +123,7 @@ class ProfileRefinementActivity : AppCompatActivity() {
         if (isRecording) return
         isRecording = true
         roundHitCount = 0
+        currentRound = completedRounds + 1
         onsetDetector.reset()
         snippetBuffer.fill(0f)
         snippetWritePos = 0
@@ -191,6 +203,7 @@ class ProfileRefinementActivity : AppCompatActivity() {
 
     private fun addHitResult(detected: DrumPart?) {
         roundHitCount++
+        refinementHits.add(Triple(currentRound, roundHitCount, detected))
         val label = detected?.displayName ?: getString(R.string.hit_unknown)
         val tv = TextView(this).apply {
             text = getString(R.string.refinement_hit_result, roundHitCount, label)
@@ -222,6 +235,20 @@ class ProfileRefinementActivity : AppCompatActivity() {
             binding.textRoundCount.visibility = View.VISIBLE
             binding.textRoundCount.text = getString(R.string.refinement_rounds_done, completedRounds)
         }
+    }
+
+    private fun exportRefinementResults() {
+        if (refinementHits.isEmpty()) {
+            Toast.makeText(this, R.string.refinement_no_hits_to_export, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val csv = DiagnosticsExporter.buildRefinementReport(refinementHits)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.refinement_export_subject))
+            putExtra(Intent.EXTRA_TEXT, csv)
+        }
+        startActivity(Intent.createChooser(intent, getString(R.string.refinement_export_chooser)))
     }
 
     override fun onPause() {

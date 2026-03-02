@@ -86,6 +86,24 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="8dp">
+
+            <TextView
+                android:id="@+id/textCalibrationCompleteness"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="10dp"
+                android:textSize="13sp"
+                android:textStyle="italic" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Current calibration status card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginBottom="20dp"
             app:cardElevation="2dp"
             app:cardCornerRadius="8dp">
