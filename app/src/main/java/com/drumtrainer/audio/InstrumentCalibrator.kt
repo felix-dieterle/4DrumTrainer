@@ -64,6 +64,11 @@ class InstrumentCalibrator(
      * @property peakFrequencies Raw peak-frequency measurements (one per detected hit).
      * @property audioFilePath   Absolute path to the saved WAV recording of the hit phase,
      *                           or `null` if no [audioOutputFile] was supplied to [record].
+     * @property spectralFeatures Mean three-element spectral feature vector
+     *                            [centroidHz, lowEnergyRatio, highEnergyRatio] computed over
+     *                            all detected hits, suitable for use as
+     *                            [DrumHitClassifier.featureCalibration] data.  Populated only
+     *                            when hits were detected; may be `null` if no hits were found.
      */
     data class CalibrationResult(
         val lowHz: Int,
@@ -71,7 +76,8 @@ class InstrumentCalibrator(
         val meanHz: Double,
         val stddevHz: Double,
         val peakFrequencies: List<Int>,
-        val audioFilePath: String? = null
+        val audioFilePath: String? = null,
+        val spectralFeatures: FloatArray? = null
     )
 
     companion object {
@@ -155,6 +161,7 @@ class InstrumentCalibrator(
         val snippetBuffer = FloatArray(2048)
         var snippetWritePos = 0
         val peakFrequencies = mutableListOf<Int>()
+        val featureVectors  = mutableListOf<FloatArray>()
 
         audioRecord.startRecording()
 
@@ -194,6 +201,9 @@ class InstrumentCalibrator(
             val peak = findPeakFrequency(snippet)
             if (peak > 0) {
                 peakFrequencies.add(peak)
+                // Also collect the spectral feature vector for this hit so that
+                // callers can build a feature-vector calibration for the classifier.
+                featureVectors.add(findSpectralFeatures(snippet))
                 val count = peakFrequencies.size
                 onHitDetected?.invoke(count)
                 onProgress?.invoke((count * 100 / requiredHits).coerceIn(0, 100))
@@ -260,7 +270,14 @@ class InstrumentCalibrator(
         val variance = peakFrequencies.fold(0.0) { acc, f -> acc + (f - mean) * (f - mean) } /
             peakFrequencies.size
         val stddev = sqrt(variance)
-        onComplete(CalibrationResult(low, high, mean, stddev, peakFrequencies.toList(), savedFilePath))
+
+        // Compute mean spectral-feature vector over all detected hits.
+        val meanFeatures: FloatArray? = if (featureVectors.isNotEmpty()) {
+            val n = featureVectors.size
+            FloatArray(3) { i -> featureVectors.sumOf { it[i].toDouble() }.toFloat() / n }
+        } else null
+
+        onComplete(CalibrationResult(low, high, mean, stddev, peakFrequencies.toList(), savedFilePath, meanFeatures))
     }
 
     /**
@@ -364,5 +381,24 @@ class InstrumentCalibrator(
         }
 
         return (peakBin.toDouble() * sampleRateHz / n).toInt()
+    }
+
+    /**
+     * Computes the three-element spectral feature vector
+     * [centroidHz, lowEnergyRatio, highEnergyRatio] for [snippet] (raw PCM,
+     * not yet windowed).
+     *
+     * A **Hann window** is applied internally before the DFT so callers do not
+     * need to pre-process the snippet.  The returned vector can be stored as the
+     * [CalibrationResult.spectralFeatures] for a calibrated instrument and later
+     * provided to [DrumHitClassifier] via its `featureCalibration` parameter.
+     *
+     * `internal` so it can be tested directly without requiring a microphone.
+     *
+     * @see AudioUtils.computeSpectralFeatures
+     */
+    internal fun findSpectralFeatures(snippet: FloatArray): FloatArray {
+        val windowed = AudioUtils.applyHannWindow(snippet)
+        return AudioUtils.computeSpectralFeatures(windowed, sampleRateHz)
     }
 }

@@ -37,14 +37,59 @@ import kotlin.math.sqrt
  * returns the best-ranked candidate from the family that matches the HF ratio
  * prediction.
  *
- * @param sampleRateHz  Recording sample rate (default: 44 100 Hz).
- * @param calibration   Optional map of per-[DrumPart] (lowHz, highHz) overrides
- *                      produced by [com.drumtrainer.audio.InstrumentCalibrator].
+ * ### Feature-vector calibration
+ *
+ * When [featureCalibration] is provided (non-empty), the classifier switches to a
+ * **nearest-neighbour** strategy using three spectral features computed by
+ * [AudioUtils.computeSpectralFeatures]:
+ *
+ * 1. **Spectral centroid** – frequency-weighted mean of the DFT magnitude spectrum.
+ *    More stable across repeated hits than the raw DFT peak frequency, especially
+ *    for instruments with complex multi-resonance spectra (e.g. snare drum).
+ * 2. **Low-energy ratio** – fraction of energy below [AudioUtils.FEATURE_LOW_HZ].
+ * 3. **High-energy ratio** – fraction of energy above [AudioUtils.FEATURE_HIGH_HZ].
+ *
+ * Each feature is min-max normalised across the calibrated instruments so that all
+ * three dimensions contribute equally to the distance.  The [DrumPart] whose
+ * calibrated feature vector is closest (Euclidean distance in normalised space) to
+ * the incoming snippet is returned.  This strategy reliably separates instruments
+ * whose dominant DFT peak frequencies are nearly identical (e.g. bass drum and
+ * floor tom both resonating near 100–150 Hz) because the overall spectral shape
+ * (captured by centroid, low-ratio, and high-ratio) is still distinctly different.
+ *
+ * @param sampleRateHz       Recording sample rate (default: 44 100 Hz).
+ * @param calibration        Optional map of per-[DrumPart] (lowHz, highHz) overrides
+ *                           produced by [com.drumtrainer.audio.InstrumentCalibrator].
+ * @param featureCalibration Optional map of per-[DrumPart] three-element feature
+ *                           vectors [centroidHz, lowEnergyRatio, highEnergyRatio]
+ *                           produced by [com.drumtrainer.audio.InstrumentCalibrator].
+ *                           When non-empty, takes precedence over [calibration] and
+ *                           enables nearest-neighbour feature matching.
  */
 class DrumHitClassifier(
     private val sampleRateHz: Int = 44_100,
-    private val calibration: Map<DrumPart, Pair<Int, Int>> = emptyMap()
+    private val calibration: Map<DrumPart, Pair<Int, Int>> = emptyMap(),
+    private val featureCalibration: Map<DrumPart, FloatArray> = emptyMap()
 ) {
+
+    /**
+     * Per-feature (centroid, lowRatio, hiRatio) min and max values computed
+     * from [featureCalibration] for min-max normalisation.  Initialised once
+     * when the classifier is constructed.
+     */
+    private val featureMin: FloatArray
+    private val featureMax: FloatArray
+
+    init {
+        if (featureCalibration.isNotEmpty()) {
+            val vecs = featureCalibration.values
+            featureMin = FloatArray(3) { i -> vecs.minOf { it[i] } }
+            featureMax = FloatArray(3) { i -> vecs.maxOf { it[i] } }
+        } else {
+            featureMin = FloatArray(3)
+            featureMax = FloatArray(3)
+        }
+    }
 
     /**
      * Returns `true` when per-instrument calibration data has been provided, meaning
@@ -52,7 +97,7 @@ class DrumHitClassifier(
      * broad factory defaults.  When calibrated, a higher [confidenceRatio] can be
      * used in [classify] to reject ambiguous hits rather than guess.
      */
-    val isCalibrated: Boolean get() = calibration.isNotEmpty()
+    val isCalibrated: Boolean get() = calibration.isNotEmpty() || featureCalibration.isNotEmpty()
 
     companion object {
         /**
@@ -116,6 +161,7 @@ class DrumHitClassifier(
      * @param minEnergy        Minimum RMS energy to consider a valid hit (default: 0.01).
      * @param confidenceRatio  Minimum ratio of best-band energy to runner-up energy
      *                         required for a confident classification (default: 1.0 = disabled).
+     *                         Ignored when [featureCalibration] is in use.
      */
     fun classify(
         snippet: FloatArray,
@@ -127,6 +173,17 @@ class DrumHitClassifier(
 
         // Apply Hann window once to suppress spectral leakage before any DFT.
         val windowed = AudioUtils.applyHannWindow(snippet)
+
+        // --- Feature-vector path (nearest-neighbour in spectral-feature space) ----
+        // When a feature calibration is available, use the three-element feature
+        // vector [centroidHz, lowEnergyRatio, highEnergyRatio] rather than single-
+        // band energies.  This path is significantly more robust for real-world
+        // recordings where two instruments share nearly the same dominant DFT peak
+        // (e.g. bass drum and floor tom at 100–150 Hz) but differ in overall
+        // spectral shape.
+        if (featureCalibration.isNotEmpty()) {
+            return classifyByFeatures(windowed)
+        }
 
         val bandEnergies = DrumPart.values().associateWith { part ->
             val (low, high) = calibration[part] ?: (part.freqRangeLowHz to part.freqRangeHighHz)
@@ -154,6 +211,49 @@ class DrumHitClassifier(
         }
 
         return best.key
+    }
+
+    /**
+     * Classifies [windowed] (Hann-windowed PCM) using nearest-neighbour matching
+     * in the three-dimensional spectral feature space: [centroidHz, lowEnergyRatio,
+     * highEnergyRatio].  Each feature dimension is min-max normalised across the
+     * calibrated instruments so that all dimensions contribute equally regardless
+     * of their absolute scale.
+     *
+     * Returns the [DrumPart] whose stored feature vector is closest (Euclidean
+     * distance in normalised space) to the feature vector computed from [windowed].
+     */
+    private fun classifyByFeatures(windowed: FloatArray): DrumPart? {
+        val feats = AudioUtils.computeSpectralFeatures(windowed, sampleRateHz)
+
+        var bestPart: DrumPart? = null
+        var bestDist = Float.MAX_VALUE
+
+        for ((part, calFeats) in featureCalibration) {
+            val dist = normalizedFeatureDistance(feats, calFeats)
+            if (dist < bestDist) {
+                bestDist = dist
+                bestPart = part
+            }
+        }
+        return bestPart
+    }
+
+    /**
+     * Computes the Euclidean distance between feature vectors [a] and [b] in
+     * normalised space.  Each of the three dimensions is scaled by the observed
+     * range across all calibrated instruments (stored in [featureMin]/[featureMax])
+     * so that a unit change in centroid Hz counts the same as a unit change in
+     * low- or high-energy ratio.
+     */
+    private fun normalizedFeatureDistance(a: FloatArray, b: FloatArray): Float {
+        var sumSq = 0.0
+        for (i in 0 until 3) {
+            val range = featureMax[i] - featureMin[i]
+            val diff  = if (range > 0f) (a[i] - b[i]) / range else 0f
+            sumSq += diff.toDouble() * diff.toDouble()
+        }
+        return sqrt(sumSq).toFloat()
     }
 
     /**
