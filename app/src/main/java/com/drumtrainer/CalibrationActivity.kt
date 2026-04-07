@@ -215,6 +215,9 @@ class CalibrationActivity : AppCompatActivity() {
                         prefs.setCalibration(selectedPart, result.lowHz, result.highHz)
                         prefs.setCalibrationStats(selectedPart, result.meanHz, result.stddevHz)
                         prefs.setPeakFrequencies(selectedPart, result.peakFrequencies)
+                        if (result.spectralFeatures != null) {
+                            prefs.setSpectralFeatures(selectedPart, result.spectralFeatures)
+                        }
                         if (result.audioFilePath != null) {
                             prefs.setRecordingPath(selectedPart, result.audioFilePath)
                         }
