@@ -70,7 +70,7 @@ class LessonActivity : AppCompatActivity() {
         prefs          = PreferencesManager(this)
         db             = DatabaseHelper(this)
         audioProcessor = AudioProcessor(
-            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations())
+            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations(), featureCalibration = prefs.getAllSpectralFeatures())
         )
 
         loadLessonAndStudent()
@@ -183,7 +183,7 @@ class LessonActivity : AppCompatActivity() {
 
         val enabledParts = binding.drumKitView.enabledParts
         val adaptationManager = AdaptationManager(
-            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations())
+            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations(), featureCalibration = prefs.getAllSpectralFeatures())
         )
 
         Thread {
@@ -292,6 +292,9 @@ class LessonActivity : AppCompatActivity() {
                     if (result != null) {
                         prefs.setCalibration(part, result.lowHz, result.highHz)
                         prefs.setCalibrationStats(part, result.meanHz, result.stddevHz)
+                        if (result.spectralFeatures != null) {
+                            prefs.setSpectralFeatures(part, result.spectralFeatures)
+                        }
                         Toast.makeText(
                             this,
                             getString(R.string.adaptation_calibration_done, part.displayName),
@@ -299,7 +302,7 @@ class LessonActivity : AppCompatActivity() {
                         ).show()
                         // Rebuild the processor so the new calibration is active
                         audioProcessor = AudioProcessor(
-                            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations())
+                            classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations(), featureCalibration = prefs.getAllSpectralFeatures())
                         )
                     }
                     binding.textStatus.text = getString(R.string.status_ready)

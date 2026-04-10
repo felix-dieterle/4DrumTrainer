@@ -68,7 +68,7 @@ class ProfileRefinementActivity : AppCompatActivity() {
         title = getString(R.string.title_profile_refinement)
 
         prefs = PreferencesManager(this)
-        classifier = DrumHitClassifier(sampleRateHz, prefs.getAllCalibrations())
+        classifier = DrumHitClassifier(sampleRateHz, prefs.getAllCalibrations(), prefs.getAllSpectralFeatures())
 
         populateCalibratedInstruments()
 

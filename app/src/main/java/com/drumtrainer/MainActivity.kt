@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isFreePlayListening = false
     private val audioProcessor: AudioProcessor by lazy {
-        AudioProcessor(classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations()))
+        AudioProcessor(classifier = DrumHitClassifier(calibration = prefs.getAllCalibrations(), featureCalibration = prefs.getAllSpectralFeatures()))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

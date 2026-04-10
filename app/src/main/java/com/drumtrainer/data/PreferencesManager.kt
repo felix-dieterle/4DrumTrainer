@@ -63,12 +63,13 @@ class PreferencesManager(context: Context) {
         private const val KEY_CHEAT_MODE      = "cheat_mode"
         private const val KEY_MIC_SENSITIVITY = "mic_sensitivity"
 
-        private fun calKeyLow(part: DrumPart)       = "cal_${part.name}_low"
-        private fun calKeyHigh(part: DrumPart)      = "cal_${part.name}_high"
-        private fun calKeyMean(part: DrumPart)      = "cal_${part.name}_mean"
-        private fun calKeyStddev(part: DrumPart)    = "cal_${part.name}_stddev"
-        private fun calKeyPeaks(part: DrumPart)     = "cal_${part.name}_peaks"
-        private fun calKeyRecording(part: DrumPart) = "cal_${part.name}_recording"
+        private fun calKeyLow(part: DrumPart)          = "cal_${part.name}_low"
+        private fun calKeyHigh(part: DrumPart)         = "cal_${part.name}_high"
+        private fun calKeyMean(part: DrumPart)         = "cal_${part.name}_mean"
+        private fun calKeyStddev(part: DrumPart)       = "cal_${part.name}_stddev"
+        private fun calKeyPeaks(part: DrumPart)        = "cal_${part.name}_peaks"
+        private fun calKeyRecording(part: DrumPart)    = "cal_${part.name}_recording"
+        private fun calKeyFeatures(part: DrumPart)     = "cal_${part.name}_features"
     }
 
     // ── Instrument calibration ────────────────────────────────────────────────
@@ -106,6 +107,7 @@ class PreferencesManager(context: Context) {
             .remove(calKeyStddev(part))
             .remove(calKeyPeaks(part))
             .remove(calKeyRecording(part))
+            .remove(calKeyFeatures(part))
             .apply()
     }
 
@@ -220,5 +222,44 @@ class PreferencesManager(context: Context) {
     fun getAllRecordingPaths(): Map<DrumPart, String> =
         DrumPart.values().mapNotNull { part ->
             getRecordingPath(part)?.let { part to it }
+        }.toMap()
+
+    // ── Spectral feature vectors ──────────────────────────────────────────────
+
+    /**
+     * Persists the three-element spectral feature vector
+     * [centroidHz, lowEnergyRatio, highEnergyRatio] computed during calibration
+     * of [part].  The vector is stored as a comma-separated string.
+     *
+     * @param part     The drum instrument that was calibrated.
+     * @param features Three-element FloatArray produced by
+     *                 [com.drumtrainer.audio.InstrumentCalibrator.findSpectralFeatures].
+     */
+    fun setSpectralFeatures(part: DrumPart, features: FloatArray) {
+        prefs.edit()
+            .putString(calKeyFeatures(part), features.joinToString(","))
+            .apply()
+    }
+
+    /**
+     * Returns the spectral feature vector saved during calibration of [part], or
+     * `null` if the instrument has never been calibrated with feature data.
+     */
+    fun getSpectralFeatures(part: DrumPart): FloatArray? {
+        val raw = prefs.getString(calKeyFeatures(part), null) ?: return null
+        val values = raw.split(",").mapNotNull { it.trim().toFloatOrNull() }
+        return if (values.size == 3) values.toFloatArray() else null
+    }
+
+    /**
+     * Returns a map of all [DrumPart]s that have saved spectral feature vectors.
+     * Parts without feature data are absent from the map.
+     * This map can be passed directly to [com.drumtrainer.audio.DrumHitClassifier]
+     * as its `featureCalibration` parameter to enable nearest-neighbour
+     * classification.
+     */
+    fun getAllSpectralFeatures(): Map<DrumPart, FloatArray> =
+        DrumPart.values().mapNotNull { part ->
+            getSpectralFeatures(part)?.let { part to it }
         }.toMap()
 }
