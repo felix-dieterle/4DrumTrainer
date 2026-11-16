@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import com.drumtrainer.audio.DiagnosticsExporter
 import com.drumtrainer.audio.DrumHitClassifier
 import com.drumtrainer.audio.OnsetDetector
+import com.drumtrainer.audio.SnippetCollector
 import com.drumtrainer.data.PreferencesManager
 import com.drumtrainer.databinding.ActivityProfileRefinementBinding
 import com.drumtrainer.model.DrumPart
@@ -43,8 +44,7 @@ class ProfileRefinementActivity : AppCompatActivity() {
 
     private val sampleRateHz = 44_100
     private val onsetDetector = OnsetDetector(sampleRateHz)
-    private val snippetBuffer = FloatArray(2048)
-    private var snippetWritePos = 0
+    private val snippets = SnippetCollector(sampleRateHz)
 
     private var audioRecord: AudioRecord? = null
     private var recordingThread: Thread? = null
@@ -125,8 +125,7 @@ class ProfileRefinementActivity : AppCompatActivity() {
         roundHitCount = 0
         currentRound = completedRounds + 1
         onsetDetector.reset()
-        snippetBuffer.fill(0f)
-        snippetWritePos = 0
+        snippets.reset()
 
         // Insert a round-separator header into the results list.
         if (completedRounds > 0 || binding.resultsContainer.childCount > 0) {
@@ -144,51 +143,80 @@ class ProfileRefinementActivity : AppCompatActivity() {
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
+        if (minBufSize <= 0) {
+            isRecording = false
+            updateStatusUI()
+            return
+        }
         val bufSize = minBufSize * 4
-        audioRecord = AudioRecord(
+        val record = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             sampleRateHz,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
             bufSize
         )
+        if (record.state != AudioRecord.STATE_INITIALIZED) {
+            record.release()
+            isRecording = false
+            updateStatusUI()
+            return
+        }
+        audioRecord = record
 
-        onsetDetector.onOnset = {
-            val size = minOf(512, snippetBuffer.size)
-            val start = (snippetWritePos - size).coerceAtLeast(0)
-            val snippet = FloatArray(size) { snippetBuffer[(start + it) % snippetBuffer.size] }
-            val detected = classifier.classify(
-                snippet,
-                confidenceRatio = if (classifier.isCalibrated)
-                    DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
-            )
-            runOnUiThread { addHitResult(detected) }
+        onsetDetector.onOnset = { timestampMs ->
+            snippets.markOnsetFromTimestamp(timestampMs)
         }
 
-        audioRecord?.startRecording()
+        record.startRecording()
 
         recordingThread = Thread {
             val rawBuffer = ShortArray(bufSize / 2)
             val floatBuffer = FloatArray(bufSize / 2)
             val ar = audioRecord ?: return@Thread
             val frameSize = onsetDetector.frameSize
+            var readFailures = 0
             while (isRecording && ar.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                 val read = ar.read(rawBuffer, 0, rawBuffer.size)
-                if (read <= 0) continue
+                if (read <= 0) {
+                    if (++readFailures >= MAX_CONSECUTIVE_READ_FAILURES) break
+                    continue
+                }
+                readFailures = 0
                 for (i in 0 until read) floatBuffer[i] = rawBuffer[i] / 32768f
                 var pos = 0
                 while (pos + frameSize <= read) {
-                    for (i in 0 until frameSize) {
-                        snippetBuffer[snippetWritePos % snippetBuffer.size] = floatBuffer[pos + i]
-                        snippetWritePos++
-                    }
-                    onsetDetector.feed(floatBuffer.copyOfRange(pos, pos + frameSize))
+                    val frame = floatBuffer.copyOfRange(pos, pos + frameSize)
+                    snippets.append(frame)
+                    onsetDetector.feed(frame)
+                    processReadyHits()
                     pos += frameSize
+                }
+                if (pos < read) {
+                    val rest = floatBuffer.copyOfRange(pos, read)
+                    snippets.append(rest)
+                    onsetDetector.feed(rest)
+                    processReadyHits()
                 }
             }
         }.also { it.start() }
 
         updateStatusUI()
+    }
+
+    /**
+     * Classifies every completed hit window and posts the result to the UI thread.
+     */
+    private fun processReadyHits() {
+        while (true) {
+            val hit = snippets.extractReadyHit() ?: return
+            val detected = classifier.classify(
+                hit.snippet,
+                confidenceRatio = if (classifier.isCalibrated)
+                    DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
+            )
+            runOnUiThread { addHitResult(detected) }
+        }
     }
 
     private fun stopRound() {
@@ -265,5 +293,6 @@ class ProfileRefinementActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 1003
+        private const val MAX_CONSECUTIVE_READ_FAILURES = 100
     }
 }

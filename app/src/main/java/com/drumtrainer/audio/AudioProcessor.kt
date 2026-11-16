@@ -42,6 +42,7 @@ class AudioProcessor(
     private val CHANNEL_CONFIG  = AudioFormat.CHANNEL_IN_MONO
     private val AUDIO_FORMAT    = AudioFormat.ENCODING_PCM_16BIT
     private val BUFFER_MULTIPLIER = 4
+    private val MAX_CONSECUTIVE_READ_FAILURES = 100
 
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job? = null
@@ -52,9 +53,8 @@ class AudioProcessor(
     /** All detected hits accumulated during this session. */
     private val detectedHits = mutableListOf<Pair<Long, DrumPart?>>()
 
-    /** Raw PCM ring buffer for classifier snippet extraction (last 2048 samples). */
-    private val snippetBuffer = FloatArray(2048)
-    private var snippetWritePos = 0
+    /** Collects the longer analysis window for each hit after the onset fires. */
+    private val snippets = SnippetCollector(sampleRateHz)
 
     /**
      * Starts recording and onset detection.
@@ -73,63 +73,83 @@ class AudioProcessor(
     ) {
         onsetDetector.reset()
         detectedHits.clear()
-        snippetBuffer.fill(0f)
-        snippetWritePos = 0
+        snippets.reset()
         recordingStartMs = System.currentTimeMillis()
 
         val minBufferSize = AudioRecord.getMinBufferSize(sampleRateHz, CHANNEL_CONFIG, AUDIO_FORMAT)
+        if (minBufferSize <= 0) return
         val bufferSize    = minBufferSize * BUFFER_MULTIPLIER
 
-        audioRecord = AudioRecord(
+        val record = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             sampleRateHz, CHANNEL_CONFIG, AUDIO_FORMAT, bufferSize
         )
+        if (record.state != AudioRecord.STATE_INITIALIZED) {
+            record.release()
+            return
+        }
+        audioRecord = record
 
         onsetDetector.onOnset = { timestampMs ->
-            val snippet  = extractSnippet()
-            val part     = classifier.classify(
-                snippet,
-                confidenceRatio = if (classifier.isCalibrated)
-                    DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
-            )
-            val velocity = computeRms(snippet)
-            val wallMs   = recordingStartMs + timestampMs
-            synchronized(detectedHits) { detectedHits.add(wallMs to part) }
-            onHitDetected?.invoke(wallMs, part, velocity)
+            snippets.markOnsetFromTimestamp(timestampMs)
         }
 
-        audioRecord?.startRecording()
+        record.startRecording()
 
         recordingJob = CoroutineScope(Dispatchers.IO).launch {
             val rawBuffer  = ShortArray(bufferSize / 2)
             val floatBuffer = FloatArray(bufferSize / 2)
             val ar = audioRecord ?: return@launch
             val frameSize = onsetDetector.frameSize
+            var readFailures = 0
             while (ar.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                 val read = ar.read(rawBuffer, 0, rawBuffer.size)
-                if (read <= 0) continue
+                if (read <= 0) {
+                    if (++readFailures >= MAX_CONSECUTIVE_READ_FAILURES) break
+                    continue
+                }
+                readFailures = 0
                 for (i in 0 until read) {
                     floatBuffer[i] = rawBuffer[i] / 32768f
                 }
-                // Process one detector frame at a time so that when onOnset fires,
-                // the circular buffer contains exactly the onset frame – not samples
-                // from a later frame that were written before feed() was called.
+                // Process one detector frame at a time so that the snippet collector
+                // sees samples in exactly the order the onset detector does.
                 var pos = 0
                 while (pos + frameSize <= read) {
-                    for (i in 0 until frameSize) {
-                        snippetBuffer[snippetWritePos % snippetBuffer.size] = floatBuffer[pos + i]
-                        snippetWritePos++
-                    }
-                    onsetDetector.feed(floatBuffer.copyOfRange(pos, pos + frameSize))
+                    val frame = floatBuffer.copyOfRange(pos, pos + frameSize)
+                    snippets.append(frame)
+                    onsetDetector.feed(frame)
+                    classifyReadyHits(onHitDetected)
                     pos += frameSize
                 }
-                // Feed any remaining samples (< frameSize) to keep onset timestamps accurate.
-                // OnsetDetector only processes complete frames, so no onset can fire here
-                // and the snippet buffer is never consulted for this sub-frame remainder.
                 if (pos < read) {
-                    onsetDetector.feed(floatBuffer.copyOfRange(pos, read))
+                    val rest = floatBuffer.copyOfRange(pos, read)
+                    snippets.append(rest)
+                    onsetDetector.feed(rest)
+                    classifyReadyHits(onHitDetected)
                 }
             }
+        }
+    }
+
+    /**
+     * Classifies every hit whose post-onset analysis window is now complete and
+     * reports it through [onHitDetected].
+     */
+    private fun classifyReadyHits(
+        onHitDetected: ((timestampMs: Long, part: DrumPart?, velocity: Float) -> Unit)?
+    ) {
+        while (true) {
+            val hit = snippets.extractReadyHit() ?: return
+            val part = classifier.classify(
+                hit.snippet,
+                confidenceRatio = if (classifier.isCalibrated)
+                    DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
+            )
+            val velocity = computeRms(hit.snippet)
+            val wallMs   = recordingStartMs + hit.onsetTimestampMs
+            synchronized(detectedHits) { detectedHits.add(wallMs to part) }
+            onHitDetected?.invoke(wallMs, part, velocity)
         }
     }
 
@@ -191,12 +211,6 @@ class AudioProcessor(
      */
     fun setOnsetThreshold(factor: Float) {
         onsetDetector.onsetThresholdFactor = factor
-    }
-
-    private fun extractSnippet(): FloatArray {
-        val size = minOf(512, snippetBuffer.size)
-        val start = (snippetWritePos - size).coerceAtLeast(0)
-        return FloatArray(size) { snippetBuffer[(start + it) % snippetBuffer.size] }
     }
 
     private fun computeRms(signal: FloatArray): Float {

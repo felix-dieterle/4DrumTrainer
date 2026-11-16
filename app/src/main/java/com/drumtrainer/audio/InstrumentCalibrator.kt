@@ -7,8 +7,6 @@ import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -85,6 +83,12 @@ class InstrumentCalibrator(
         const val CALIBRATION_HITS = 5
 
         /**
+         * Abort the recording loop after this many consecutive failed
+         * [AudioRecord.read] calls instead of spinning forever.
+         */
+        private const val MAX_CONSECUTIVE_READ_FAILURES = 100
+
+        /**
          * Minimum band span expressed as a fraction of the mean peak frequency.
          * Ensures that even a perfectly tight hit cluster produces a band wide
          * enough for the DFT bin resolution to yield meaningful results.
@@ -149,6 +153,10 @@ class InstrumentCalibrator(
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
+        if (minBufferSize <= 0) {
+            onComplete(null)
+            return
+        }
         val bufferSize = minBufferSize * 4
         val audioRecord = AudioRecord(
             MediaRecorder.AudioSource.MIC,
@@ -157,9 +165,13 @@ class InstrumentCalibrator(
             AudioFormat.ENCODING_PCM_16BIT,
             bufferSize
         )
+        if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
+            audioRecord.release()
+            onComplete(null)
+            return
+        }
 
-        val snippetBuffer = FloatArray(2048)
-        var snippetWritePos = 0
+        val collector = SnippetCollector(sampleRateHz)
         val peakFrequencies = mutableListOf<Int>()
         val featureVectors  = mutableListOf<FloatArray>()
 
@@ -174,19 +186,27 @@ class InstrumentCalibrator(
         onBackgroundNoisePhase?.invoke()
         val bgSamples = sampleRateHz.toLong() * backgroundNoiseDurationMs / 1000
         var bgRead = 0L
+        var bgFailures = 0
         while (bgRead < bgSamples) {
             val read = audioRecord.read(rawBuffer, 0, rawBuffer.size)
-            if (read <= 0) continue
+            if (read <= 0) {
+                if (++bgFailures >= MAX_CONSECUTIVE_READ_FAILURES) break
+                continue
+            }
+            bgFailures = 0
             for (i in 0 until read) floatBuffer[i] = rawBuffer[i] / 32768f
             val frameSize = onsetDetector.frameSize
             var pos = 0
             while (pos + frameSize <= read) {
-                for (i in 0 until frameSize) {
-                    snippetBuffer[snippetWritePos % snippetBuffer.size] = floatBuffer[pos + i]
-                    snippetWritePos++
-                }
-                onsetDetector.feed(floatBuffer.copyOfRange(pos, pos + frameSize))
+                val frame = floatBuffer.copyOfRange(pos, pos + frameSize)
+                collector.append(frame)
+                onsetDetector.feed(frame)
                 pos += frameSize
+            }
+            if (pos < read) {
+                val rest = floatBuffer.copyOfRange(pos, read)
+                collector.append(rest)
+                onsetDetector.feed(rest)
             }
             bgRead += read
         }
@@ -194,31 +214,40 @@ class InstrumentCalibrator(
         // Hit detection phase: register the onset callback now that the detector's
         // baseline is calibrated to the actual background noise level.
         onHitPhaseStart?.invoke()
-        onsetDetector.onOnset = {
-            val size = minOf(512, snippetBuffer.size)
-            val start = (snippetWritePos - size).coerceAtLeast(0)
-            val snippet = FloatArray(size) { snippetBuffer[(start + it) % snippetBuffer.size] }
-            val peak = findPeakFrequency(snippet)
-            if (peak > 0) {
-                peakFrequencies.add(peak)
-                // Also collect the spectral feature vector for this hit so that
-                // callers can build a feature-vector calibration for the classifier.
-                featureVectors.add(findSpectralFeatures(snippet))
-                val count = peakFrequencies.size
-                onHitDetected?.invoke(count)
-                onProgress?.invoke((count * 100 / requiredHits).coerceIn(0, 100))
+        onsetDetector.onOnset = { timestampMs ->
+            collector.markOnsetFromTimestamp(timestampMs)
+        }
+
+        fun processReadyHits() {
+            while (true) {
+                val hit = collector.extractReadyHit() ?: break
+                val peak = findPeakFrequency(hit.snippet)
+                if (peak > 0) {
+                    peakFrequencies.add(peak)
+                    // Also collect the spectral feature vector for this hit so that
+                    // callers can build a feature-vector calibration for the classifier.
+                    featureVectors.add(findSpectralFeatures(hit.snippet))
+                    val count = peakFrequencies.size
+                    onHitDetected?.invoke(count)
+                    onProgress?.invoke((count * 100 / requiredHits).coerceIn(0, 100))
+                }
             }
         }
 
         val totalSamples = sampleRateHz.toLong() * maxDurationMs / 1000
         var samplesRead  = 0L
+        var readFailures = 0
 
         // Accumulate raw PCM bytes from the hit phase so they can be saved as a WAV file.
         val hitPcmStream = if (audioOutputFile != null) ByteArrayOutputStream() else null
 
         while (samplesRead < totalSamples && peakFrequencies.size < requiredHits) {
             val read = audioRecord.read(rawBuffer, 0, rawBuffer.size)
-            if (read <= 0) continue
+            if (read <= 0) {
+                if (++readFailures >= MAX_CONSECUTIVE_READ_FAILURES) break
+                continue
+            }
+            readFailures = 0
             for (i in 0 until read) {
                 floatBuffer[i] = rawBuffer[i] / 32768f
             }
@@ -230,18 +259,22 @@ class InstrumentCalibrator(
                     hitPcmStream.write((s shr 8) and 0xFF)
                 }
             }
-            // Process one detector frame at a time so that when onOnset fires,
-            // the circular buffer contains exactly the onset frame – not samples
-            // from a later frame that were written before feed() was called.
+            // Process one detector frame at a time so that the snippet collector
+            // receives samples in exactly the order the onset detector sees them.
             val frameSize = onsetDetector.frameSize
             var pos = 0
             while (pos + frameSize <= read) {
-                for (i in 0 until frameSize) {
-                    snippetBuffer[snippetWritePos % snippetBuffer.size] = floatBuffer[pos + i]
-                    snippetWritePos++
-                }
-                onsetDetector.feed(floatBuffer.copyOfRange(pos, pos + frameSize))
+                val frame = floatBuffer.copyOfRange(pos, pos + frameSize)
+                collector.append(frame)
+                onsetDetector.feed(frame)
+                processReadyHits()
                 pos += frameSize
+            }
+            if (pos < read) {
+                val rest = floatBuffer.copyOfRange(pos, read)
+                collector.append(rest)
+                onsetDetector.feed(rest)
+                processReadyHits()
             }
             samplesRead += read
         }
@@ -355,32 +388,26 @@ class InstrumentCalibrator(
      * This is `internal` so it can be tested directly without starting the mic.
      */
     internal fun findPeakFrequency(snippet: FloatArray): Int {
-        val n = snippet.size
-        val lowBin  = (50.0     * n / sampleRateHz).toInt().coerceIn(1, n / 2)
-        val highBin = (10_000.0 * n / sampleRateHz).toInt().coerceIn(lowBin + 1, n / 2)
-
-        // Apply Hann window to reduce spectral leakage before the DFT.
         val windowed = AudioUtils.applyHannWindow(snippet)
+        val spectrum = AudioUtils.computeMagnitudeSpectrum(windowed)
+        val fftSize  = (spectrum.size - 1) * 2
+
+        val lowBin  = (50.0     * fftSize / sampleRateHz).toInt().coerceIn(1, spectrum.size - 1)
+        val highBin = (10_000.0 * fftSize / sampleRateHz).toInt()
+            .coerceIn(lowBin, spectrum.size - 1)
 
         var peakBin    = lowBin
         var peakEnergy = 0.0
 
         for (k in lowBin..highBin) {
-            var re = 0.0
-            var im = 0.0
-            val angle = 2.0 * Math.PI * k / n
-            for (i in windowed.indices) {
-                re += windowed[i] * cos(angle * i)
-                im += windowed[i] * sin(angle * i)
-            }
-            val energy = re * re + im * im
+            val energy = spectrum[k].toDouble() * spectrum[k]
             if (energy > peakEnergy) {
                 peakEnergy = energy
                 peakBin    = k
             }
         }
 
-        return (peakBin.toDouble() * sampleRateHz / n).toInt()
+        return (peakBin.toDouble() * sampleRateHz / fftSize).toInt()
     }
 
     /**

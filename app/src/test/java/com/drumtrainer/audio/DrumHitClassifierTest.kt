@@ -182,4 +182,46 @@ class DrumHitClassifierTest {
             result
         )
     }
+
+    // ── Partial calibration fallback ──────────────────────────────────────────
+
+    @Test
+    fun `single feature-calibrated instrument does not swallow a cymbal hit`() {
+        // Only the bass drum has feature data (the situation after a partial
+        // calibration wizard run).  A high-frequency hit must still fall back to
+        // the default band ranges instead of being forced onto the bass drum.
+        val featureCal = mapOf(
+            DrumPart.BASS_DRUM to floatArrayOf(150f, 0.95f, 0.01f)
+        )
+        val cal = mapOf(DrumPart.BASS_DRUM to (50 to 200))
+        val classifier = DrumHitClassifier(
+            sampleRateHz = sampleRate,
+            calibration = cal,
+            featureCalibration = featureCal
+        )
+
+        val result = classifier.classify(sineSnippet(5_000))
+
+        assertNotNull("5000 Hz hit should still be classified", result)
+        assertTrue("5000 Hz hit must be a cymbal, not the calibrated bass drum", result!!.isCymbal)
+    }
+
+    @Test
+    fun `feature match far from every calibrated instrument falls back to bands`() {
+        // Two low/mid-frequency feature profiles exist; a 5000 Hz hit is far away
+        // in feature space and must not be snapped to the nearest calibrated part.
+        val featureCal = mapOf(
+            DrumPart.BASS_DRUM to floatArrayOf(120f, 0.95f, 0.01f),
+            DrumPart.SNARE     to floatArrayOf(900f, 0.20f, 0.20f)
+        )
+        val classifier = DrumHitClassifier(
+            sampleRateHz = sampleRate,
+            featureCalibration = featureCal
+        )
+
+        val result = classifier.classify(sineSnippet(5_000))
+
+        assertNotNull("5000 Hz hit should still be classified", result)
+        assertTrue("Far-away feature hit must fall back to a cymbal band", result!!.isCymbal)
+    }
 }

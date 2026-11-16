@@ -90,6 +90,10 @@ class AdaptationManager(
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
+        if (minBufferSize <= 0) {
+            onComplete(Result(0f, emptySet(), enabledParts))
+            return
+        }
         val bufferSize = minBufferSize * 4
         val audioRecord = AudioRecord(
             MediaRecorder.AudioSource.MIC,
@@ -98,27 +102,35 @@ class AdaptationManager(
             AudioFormat.ENCODING_PCM_16BIT,
             bufferSize
         )
+        if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
+            audioRecord.release()
+            onComplete(Result(0f, emptySet(), enabledParts))
+            return
+        }
 
-        val snippetBuffer = FloatArray(2048)
-        var snippetWritePos = 0
+        val collector = SnippetCollector(sampleRateHz)
 
         val detectedParts = mutableSetOf<DrumPart>()
         val noiseRmsValues = mutableListOf<Float>()
         var lastOnsetTimeMs = -1L
 
-        onsetDetector.onOnset = {
+        onsetDetector.onOnset = { timestampMs ->
             lastOnsetTimeMs = System.currentTimeMillis()
-            val size = minOf(512, snippetBuffer.size)
-            val start = (snippetWritePos - size).coerceAtLeast(0)
-            val snippet = FloatArray(size) { snippetBuffer[(start + it) % snippetBuffer.size] }
-            val part = classifier.classify(
-                snippet,
-                confidenceRatio = if (classifier.isCalibrated)
-                    DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
-            )
-            if (part != null) {
-                detectedParts.add(part)
-                onHitDetected?.invoke(part)
+            collector.markOnsetFromTimestamp(timestampMs)
+        }
+
+        fun processReadyHits() {
+            while (true) {
+                val hit = collector.extractReadyHit() ?: break
+                val part = classifier.classify(
+                    hit.snippet,
+                    confidenceRatio = if (classifier.isCalibrated)
+                        DrumHitClassifier.CALIBRATED_CONFIDENCE_RATIO else 1.0f
+                )
+                if (part != null) {
+                    detectedParts.add(part)
+                    onHitDetected?.invoke(part)
+                }
             }
         }
 
@@ -127,18 +139,34 @@ class AdaptationManager(
         val rawBuffer    = ShortArray(bufferSize / 2)
         val floatBuffer  = FloatArray(bufferSize / 2)
         val totalSamples = sampleRateHz.toLong() * durationMs / 1000
+        val frameSize    = onsetDetector.frameSize
         var samplesRead  = 0L
+        var readFailures = 0
 
         while (samplesRead < totalSamples) {
             val read = audioRecord.read(rawBuffer, 0, rawBuffer.size)
-            if (read <= 0) continue
-            for (i in 0 until read) {
-                val f = rawBuffer[i] / 32768f
-                floatBuffer[i] = f
-                snippetBuffer[snippetWritePos % snippetBuffer.size] = f
-                snippetWritePos++
+            if (read <= 0) {
+                if (++readFailures >= MAX_CONSECUTIVE_READ_FAILURES) break
+                continue
             }
-            onsetDetector.feed(floatBuffer.copyOf(read))
+            readFailures = 0
+            for (i in 0 until read) {
+                floatBuffer[i] = rawBuffer[i] / 32768f
+            }
+            var pos = 0
+            while (pos + frameSize <= read) {
+                val frame = floatBuffer.copyOfRange(pos, pos + frameSize)
+                collector.append(frame)
+                onsetDetector.feed(frame)
+                processReadyHits()
+                pos += frameSize
+            }
+            if (pos < read) {
+                val rest = floatBuffer.copyOfRange(pos, read)
+                collector.append(rest)
+                onsetDetector.feed(rest)
+                processReadyHits()
+            }
             samplesRead += read
             onProgress?.invoke(((samplesRead * 100) / totalSamples).toInt().coerceIn(0, 100))
 
@@ -213,5 +241,11 @@ class AdaptationManager(
          * is considered "quiet" and used for noise-floor estimation.
          */
         private const val QUIET_GUARD_MS = 500L
+
+        /**
+         * Abort the recording loop after this many consecutive failed
+         * [AudioRecord.read] calls instead of spinning forever.
+         */
+        private const val MAX_CONSECUTIVE_READ_FAILURES = 100
     }
 }

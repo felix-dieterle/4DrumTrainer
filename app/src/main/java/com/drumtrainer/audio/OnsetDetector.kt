@@ -1,7 +1,5 @@
 package com.drumtrainer.audio
 
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -136,23 +134,17 @@ class OnsetDetector(
     }
 
     /**
-     * Computes the DFT magnitude at each of the [NUM_FLUX_BANDS] centre frequencies.
-     * Uses the standard DFT formula evaluated at the single bin closest to each
-     * target frequency — O(N) per band, with N = frame.size.
+     * Computes the FFT magnitude at each of the [NUM_FLUX_BANDS] centre
+     * frequencies.  A single FFT per frame replaces the previous per-band DFT
+     * loop, which recomputed sine and cosine values for every band.
      */
     private fun computeBandMagnitudes(frame: FloatArray): FloatArray {
-        val n = frame.size
+        val spectrum = AudioUtils.computeMagnitudeSpectrum(frame)
+        val fftSize  = (spectrum.size - 1) * 2
         return FloatArray(NUM_FLUX_BANDS) { bandIdx ->
-            val k = (FLUX_BAND_CENTERS[bandIdx].toDouble() * n / sampleRateHz)
-                .toInt().coerceIn(1, n / 2)
-            var re = 0.0
-            var im = 0.0
-            val angle = 2.0 * Math.PI * k / n
-            for (i in frame.indices) {
-                re += frame[i] * cos(angle * i)
-                im += frame[i] * sin(angle * i)
-            }
-            sqrt(re * re + im * im).toFloat()
+            val k = (FLUX_BAND_CENTERS[bandIdx].toDouble() * fftSize / sampleRateHz)
+                .toInt().coerceIn(1, spectrum.size - 1)
+            spectrum[k]
         }
     }
 
